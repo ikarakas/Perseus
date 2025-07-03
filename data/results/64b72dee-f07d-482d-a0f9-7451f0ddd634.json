@@ -1,0 +1,396 @@
+{
+  "analysis_id": "64b72dee-f07d-482d-a0f9-7451f0ddd634",
+  "status": "completed",
+  "components": [
+    {
+      "name": "boost",
+      "version": "1.82.0",
+      "type": "conan",
+      "purl": "pkg:conan/boost@1.82.0",
+      "license": null,
+      "licenses": [],
+      "hashes": null,
+      "source_location": "/test-cpp-project/conanfile.txt",
+      "metadata": {
+        "syft_type": "conan",
+        "syft_metadata": {
+          "ref": "boost/1.82.0"
+        },
+        "language": "unknown",
+        "locations": [
+          {
+            "path": "/test-cpp-project/conanfile.txt",
+            "accessPath": "/test-cpp-project/conanfile.txt",
+            "annotations": {
+              "evidence": "primary"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "commons-lang3",
+      "version": "3.12.0",
+      "type": "java-archive",
+      "purl": "pkg:maven/commons-lang3@3.12.0",
+      "license": null,
+      "licenses": [],
+      "hashes": null,
+      "source_location": "/test-java-project/pom.xml",
+      "metadata": {
+        "syft_type": "java-archive",
+        "syft_metadata": {
+          "virtualPath": "",
+          "pomProperties": {
+            "path": "",
+            "name": "",
+            "groupId": "org.apache.commons",
+            "artifactId": "commons-lang3",
+            "version": ""
+          }
+        },
+        "language": "unknown",
+        "locations": [
+          {
+            "path": "/test-java-project/pom.xml",
+            "accessPath": "/test-java-project/pom.xml",
+            "annotations": {
+              "evidence": "primary"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "fmt",
+      "version": "10.1.1",
+      "type": "conan",
+      "purl": "pkg:conan/fmt@10.1.1",
+      "license": null,
+      "licenses": [],
+      "hashes": null,
+      "source_location": "/test-cpp-project/conanfile.txt",
+      "metadata": {
+        "syft_type": "conan",
+        "syft_metadata": {
+          "ref": "fmt/10.1.1"
+        },
+        "language": "unknown",
+        "locations": [
+          {
+            "path": "/test-cpp-project/conanfile.txt",
+            "accessPath": "/test-cpp-project/conanfile.txt",
+            "annotations": {
+              "evidence": "primary"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "jackson-databind",
+      "version": "2.15.2",
+      "type": "java-archive",
+      "purl": "pkg:maven/jackson-databind@2.15.2",
+      "license": null,
+      "licenses": [],
+      "hashes": null,
+      "source_location": "/test-java-project/pom.xml",
+      "metadata": {
+        "syft_type": "java-archive",
+        "syft_metadata": {
+          "virtualPath": "",
+          "pomProperties": {
+            "path": "",
+            "name": "",
+            "groupId": "com.fasterxml.jackson.core",
+            "artifactId": "jackson-databind",
+            "version": ""
+          }
+        },
+        "language": "unknown",
+        "locations": [
+          {
+            "path": "/test-java-project/pom.xml",
+            "accessPath": "/test-java-project/pom.xml",
+            "annotations": {
+              "evidence": "primary"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "junit",
+      "version": "4.13.2",
+      "type": "java-archive",
+      "purl": "pkg:maven/junit@4.13.2",
+      "license": null,
+      "licenses": [],
+      "hashes": null,
+      "source_location": "/test-java-project/pom.xml",
+      "metadata": {
+        "syft_type": "java-archive",
+        "syft_metadata": {
+          "virtualPath": "",
+          "pomProperties": {
+            "path": "",
+            "name": "",
+            "groupId": "junit",
+            "artifactId": "junit",
+            "version": "",
+            "scope": "test"
+          }
+        },
+        "language": "unknown",
+        "locations": [
+          {
+            "path": "/test-java-project/pom.xml",
+            "accessPath": "/test-java-project/pom.xml",
+            "annotations": {
+              "evidence": "primary"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "libcurl",
+      "version": "8.2.1",
+      "type": "conan",
+      "purl": "pkg:conan/libcurl@8.2.1",
+      "license": null,
+      "licenses": [],
+      "hashes": null,
+      "source_location": "/test-cpp-project/conanfile.txt",
+      "metadata": {
+        "syft_type": "conan",
+        "syft_metadata": {
+          "ref": "libcurl/8.2.1"
+        },
+        "language": "unknown",
+        "locations": [
+          {
+            "path": "/test-cpp-project/conanfile.txt",
+            "accessPath": "/test-cpp-project/conanfile.txt",
+            "annotations": {
+              "evidence": "primary"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "openssl",
+      "version": "1.1.1u",
+      "type": "conan",
+      "purl": "pkg:conan/openssl@1.1.1u",
+      "license": null,
+      "licenses": [],
+      "hashes": null,
+      "source_location": "/test-cpp-project/conanfile.txt",
+      "metadata": {
+        "syft_type": "conan",
+        "syft_metadata": {
+          "ref": "openssl/1.1.1u"
+        },
+        "language": "unknown",
+        "locations": [
+          {
+            "path": "/test-cpp-project/conanfile.txt",
+            "accessPath": "/test-cpp-project/conanfile.txt",
+            "annotations": {
+              "evidence": "primary"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "spdlog",
+      "version": "1.12.0",
+      "type": "conan",
+      "purl": "pkg:conan/spdlog@1.12.0",
+      "license": null,
+      "licenses": [],
+      "hashes": null,
+      "source_location": "/test-cpp-project/conanfile.txt",
+      "metadata": {
+        "syft_type": "conan",
+        "syft_metadata": {
+          "ref": "spdlog/1.12.0"
+        },
+        "language": "unknown",
+        "locations": [
+          {
+            "path": "/test-cpp-project/conanfile.txt",
+            "accessPath": "/test-cpp-project/conanfile.txt",
+            "annotations": {
+              "evidence": "primary"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "spring-boot-starter-web",
+      "version": "3.1.0",
+      "type": "java-archive",
+      "purl": "pkg:maven/spring-boot-starter-web@3.1.0",
+      "license": null,
+      "licenses": [],
+      "hashes": null,
+      "source_location": "/test-java-project/pom.xml",
+      "metadata": {
+        "syft_type": "java-archive",
+        "syft_metadata": {
+          "virtualPath": "",
+          "pomProperties": {
+            "path": "",
+            "name": "",
+            "groupId": "org.springframework.boot",
+            "artifactId": "spring-boot-starter-web",
+            "version": ""
+          }
+        },
+        "language": "unknown",
+        "locations": [
+          {
+            "path": "/test-java-project/pom.xml",
+            "accessPath": "/test-java-project/pom.xml",
+            "annotations": {
+              "evidence": "primary"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "sqlite3",
+      "version": "3.42.0",
+      "type": "conan",
+      "purl": "pkg:conan/sqlite3@3.42.0",
+      "license": null,
+      "licenses": [],
+      "hashes": null,
+      "source_location": "/test-cpp-project/conanfile.txt",
+      "metadata": {
+        "syft_type": "conan",
+        "syft_metadata": {
+          "ref": "sqlite3/3.42.0"
+        },
+        "language": "unknown",
+        "locations": [
+          {
+            "path": "/test-cpp-project/conanfile.txt",
+            "accessPath": "/test-cpp-project/conanfile.txt",
+            "annotations": {
+              "evidence": "primary"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "test",
+      "version": "1.0",
+      "type": "java-archive",
+      "purl": "pkg:maven/test@1.0",
+      "license": null,
+      "licenses": [],
+      "hashes": null,
+      "source_location": "/temp-test-project/pom.xml",
+      "metadata": {
+        "syft_type": "java-archive",
+        "syft_metadata": {
+          "virtualPath": "",
+          "pomProject": {
+            "path": "",
+            "groupId": "test",
+            "artifactId": "test",
+            "version": "1.0",
+            "name": ""
+          }
+        },
+        "language": "unknown",
+        "locations": [
+          {
+            "path": "/temp-test-project/pom.xml",
+            "accessPath": "/temp-test-project/pom.xml",
+            "annotations": {
+              "evidence": "primary"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "test-app",
+      "version": "1.0.0",
+      "type": "java-archive",
+      "purl": "pkg:maven/test-app@1.0.0",
+      "license": null,
+      "licenses": [],
+      "hashes": null,
+      "source_location": "/test-java-project/pom.xml",
+      "metadata": {
+        "syft_type": "java-archive",
+        "syft_metadata": {
+          "virtualPath": "",
+          "pomProject": {
+            "path": "",
+            "groupId": "com.example",
+            "artifactId": "test-app",
+            "version": "1.0.0",
+            "name": ""
+          }
+        },
+        "language": "unknown",
+        "locations": [
+          {
+            "path": "/test-java-project/pom.xml",
+            "accessPath": "/test-java-project/pom.xml",
+            "annotations": {
+              "evidence": "primary"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "zlib",
+      "version": "1.2.13",
+      "type": "conan",
+      "purl": "pkg:conan/zlib@1.2.13",
+      "license": null,
+      "licenses": [],
+      "hashes": null,
+      "source_location": "/test-cpp-project/conanfile.txt",
+      "metadata": {
+        "syft_type": "conan",
+        "syft_metadata": {
+          "ref": "zlib/1.2.13"
+        },
+        "language": "unknown",
+        "locations": [
+          {
+            "path": "/test-cpp-project/conanfile.txt",
+            "accessPath": "/test-cpp-project/conanfile.txt",
+            "annotations": {
+              "evidence": "primary"
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "errors": [],
+  "metadata": {
+    "analyzer": "syft",
+    "location": "/app/data/",
+    "type": "directory",
+    "components_found": 13,
+    "syft_version": "Application:   syft",
+    "analysis_type": "binary"
+  }
+}

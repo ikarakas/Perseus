@@ -1,0 +1,69 @@
+{
+  "analysis_id": "577683d0-2c07-4372-9973-0cca93028046",
+  "status": "completed",
+  "components": [
+    {
+      "name": "org.springframework.boot:spring-boot-starter-web",
+      "version": "3.1.0",
+      "purl": "pkg:maven/org.springframework.boot/spring-boot-starter-web@3.1.0",
+      "license": null,
+      "hashes": null,
+      "source_location": "/app/data/test-java-project/pom.xml"
+    },
+    {
+      "name": "com.fasterxml.jackson.core:jackson-databind",
+      "version": "2.15.2",
+      "purl": "pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.15.2",
+      "license": null,
+      "hashes": null,
+      "source_location": "/app/data/test-java-project/pom.xml"
+    },
+    {
+      "name": "org.apache.commons:commons-lang3",
+      "version": "3.12.0",
+      "purl": "pkg:maven/org.apache.commons/commons-lang3@3.12.0",
+      "license": null,
+      "hashes": null,
+      "source_location": "/app/data/test-java-project/pom.xml"
+    },
+    {
+      "name": "apache-commons",
+      "version": null,
+      "purl": null,
+      "license": null,
+      "hashes": null,
+      "source_location": "inferred_from_imports"
+    },
+    {
+      "name": "spring-web",
+      "version": null,
+      "purl": null,
+      "license": null,
+      "hashes": null,
+      "source_location": "inferred_from_imports"
+    },
+    {
+      "name": "spring-boot",
+      "version": null,
+      "purl": null,
+      "license": null,
+      "hashes": null,
+      "source_location": "inferred_from_imports"
+    },
+    {
+      "name": "fasterxml-jackson",
+      "version": null,
+      "purl": null,
+      "license": null,
+      "hashes": null,
+      "source_location": "inferred_from_imports"
+    }
+  ],
+  "errors": [],
+  "metadata": {
+    "source_files_analyzed": 1,
+    "build_files_found": 1,
+    "jar_files_found": 0,
+    "analyzer_type": "java_source"
+  }
+}

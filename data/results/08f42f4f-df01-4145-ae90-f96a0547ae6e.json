@@ -1,0 +1,116 @@
+{
+  "analysis_id": "08f42f4f-df01-4145-ae90-f96a0547ae6e",
+  "status": "completed",
+  "components": [
+    {
+      "name": "Boost",
+      "version": null,
+      "purl": null,
+      "license": null,
+      "hashes": null,
+      "source_location": "/app/data/test-cpp-project/CMakeLists.txt"
+    },
+    {
+      "name": "OpenSSL",
+      "version": null,
+      "purl": null,
+      "license": null,
+      "hashes": null,
+      "source_location": "/app/data/test-cpp-project/CMakeLists.txt"
+    },
+    {
+      "name": "CURL",
+      "version": null,
+      "purl": null,
+      "license": null,
+      "hashes": null,
+      "source_location": "/app/data/test-cpp-project/CMakeLists.txt"
+    },
+    {
+      "name": "fmt",
+      "version": null,
+      "purl": null,
+      "license": null,
+      "hashes": null,
+      "source_location": "/app/data/test-cpp-project/CMakeLists.txt"
+    },
+    {
+      "name": "OpenSSL::SSL",
+      "version": null,
+      "purl": null,
+      "license": null,
+      "hashes": null,
+      "source_location": "/app/data/test-cpp-project/CMakeLists.txt"
+    },
+    {
+      "name": "OpenSSL::Crypto",
+      "version": null,
+      "purl": null,
+      "license": null,
+      "hashes": null,
+      "source_location": "/app/data/test-cpp-project/CMakeLists.txt"
+    },
+    {
+      "name": "CURL::libcurl",
+      "version": null,
+      "purl": null,
+      "license": null,
+      "hashes": null,
+      "source_location": "/app/data/test-cpp-project/CMakeLists.txt"
+    },
+    {
+      "name": "fmt::fmt",
+      "version": null,
+      "purl": null,
+      "license": null,
+      "hashes": null,
+      "source_location": "/app/data/test-cpp-project/CMakeLists.txt"
+    },
+    {
+      "name": "pthread",
+      "version": null,
+      "purl": null,
+      "license": null,
+      "hashes": null,
+      "source_location": "/app/data/test-cpp-project/CMakeLists.txt"
+    },
+    {
+      "name": "sqlite3",
+      "version": null,
+      "purl": null,
+      "license": null,
+      "hashes": null,
+      "source_location": "/app/data/test-cpp-project/CMakeLists.txt"
+    },
+    {
+      "name": "zlib",
+      "version": null,
+      "purl": null,
+      "license": null,
+      "hashes": null,
+      "source_location": "/app/data/test-cpp-project/CMakeLists.txt"
+    },
+    {
+      "name": "libcurl",
+      "version": "8.2.1",
+      "purl": null,
+      "license": null,
+      "hashes": null,
+      "source_location": "/app/data/test-cpp-project/conanfile.txt"
+    },
+    {
+      "name": "spdlog",
+      "version": "1.12.0",
+      "purl": null,
+      "license": null,
+      "hashes": null,
+      "source_location": "/app/data/test-cpp-project/conanfile.txt"
+    }
+  ],
+  "errors": [],
+  "metadata": {
+    "source_files_analyzed": 5,
+    "build_files_found": 3,
+    "analyzer_type": "cpp_source"
+  }
+}

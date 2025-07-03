@@ -1,0 +1,78 @@
+{
+  "spdxVersion": "SPDX-2.3",
+  "dataLicense": "CC0-1.0",
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "name": "SBOM-20250703-202634",
+  "documentNamespace": "https://sbom-platform.local/SBOM-20250703-202634",
+  "creationInfo": {
+    "created": "2025-07-03T20:26:34.210174Z",
+    "creators": [
+      "Tool: SBOM Generation Platform-1.0.0"
+    ]
+  },
+  "packages": [
+    {
+      "SPDXID": "SPDXRef-Package-0",
+      "name": "org.springframework.boot:spring-boot-starter-web",
+      "version": "3.1.0",
+      "downloadLocation": "/app/data/test-java-project/pom.xml",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "copyrightText": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-1",
+      "name": "com.fasterxml.jackson.core:jackson-databind",
+      "version": "2.15.2",
+      "downloadLocation": "/app/data/test-java-project/pom.xml",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "copyrightText": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-2",
+      "name": "org.apache.commons:commons-lang3",
+      "version": "3.12.0",
+      "downloadLocation": "/app/data/test-java-project/pom.xml",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "copyrightText": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-3",
+      "name": "fasterxml-jackson",
+      "version": "NOASSERTION",
+      "downloadLocation": "inferred_from_imports",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "copyrightText": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-4",
+      "name": "spring-boot",
+      "version": "NOASSERTION",
+      "downloadLocation": "inferred_from_imports",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "copyrightText": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-5",
+      "name": "apache-commons",
+      "version": "NOASSERTION",
+      "downloadLocation": "inferred_from_imports",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "copyrightText": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-6",
+      "name": "spring-web",
+      "version": "NOASSERTION",
+      "downloadLocation": "inferred_from_imports",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "copyrightText": "NOASSERTION"
+    }
+  ]
+}

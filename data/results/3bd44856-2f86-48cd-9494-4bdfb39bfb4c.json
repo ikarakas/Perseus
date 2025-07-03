@@ -1,0 +1,14 @@
+{
+  "analysis_id": "3bd44856-2f86-48cd-9494-4bdfb39bfb4c",
+  "status": "completed",
+  "components": [],
+  "errors": [],
+  "metadata": {
+    "analyzer": "syft",
+    "location": "/app/data/test.py",
+    "type": "file",
+    "components_found": 0,
+    "syft_version": "Application:   syft",
+    "analysis_type": "binary"
+  }
+}

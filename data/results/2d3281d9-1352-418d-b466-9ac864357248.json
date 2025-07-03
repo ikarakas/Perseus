@@ -1,0 +1,12 @@
+{
+  "analysis_id": "2d3281d9-1352-418d-b466-9ac864357248",
+  "status": "completed",
+  "components": [],
+  "errors": [],
+  "metadata": {
+    "source_files_analyzed": 0,
+    "build_files_found": 0,
+    "jar_files_found": 0,
+    "analyzer_type": "java_source"
+  }
+}

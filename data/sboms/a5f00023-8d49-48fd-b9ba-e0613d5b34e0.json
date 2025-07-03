@@ -1,0 +1,63 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.5",
+  "serialNumber": "urn:uuid:041eeaf6-394e-486a-89bd-41d423138fc4",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2025-07-03T20:27:01.898130Z",
+    "tools": [
+      {
+        "vendor": "SBOM Platform",
+        "name": "SBOM Generation Platform",
+        "version": "1.0.0"
+      }
+    ]
+  },
+  "components": [
+    {
+      "type": "library",
+      "bom-ref": "pkg:org.springframework.boot:spring-boot-starter-web@3.1.0",
+      "name": "org.springframework.boot:spring-boot-starter-web",
+      "version": "3.1.0",
+      "purl": "pkg:maven/org.springframework.boot/spring-boot-starter-web@3.1.0"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:com.fasterxml.jackson.core:jackson-databind@2.15.2",
+      "name": "com.fasterxml.jackson.core:jackson-databind",
+      "version": "2.15.2",
+      "purl": "pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.15.2"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:org.apache.commons:commons-lang3@3.12.0",
+      "name": "org.apache.commons:commons-lang3",
+      "version": "3.12.0",
+      "purl": "pkg:maven/org.apache.commons/commons-lang3@3.12.0"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:fasterxml-jackson@unknown",
+      "name": "fasterxml-jackson",
+      "version": "unknown"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:spring-boot@unknown",
+      "name": "spring-boot",
+      "version": "unknown"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:apache-commons@unknown",
+      "name": "apache-commons",
+      "version": "unknown"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:spring-web@unknown",
+      "name": "spring-web",
+      "version": "unknown"
+    }
+  ]
+}
