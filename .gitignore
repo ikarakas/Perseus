@@ -1,6 +1,9 @@
 # Data directory - contains analysis results and generated SBOMs
 data/
 
+# Claude AI configuration
+.claude/
+
 # Python
 __pycache__/
 *.py[cod]
