@@ -7,7 +7,9 @@ from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse
 import json
+import os
 from typing import Dict, Any
+import markdown
 
 from .metrics import MetricsCollector, AlertManager
 
@@ -208,7 +210,7 @@ class MonitoringDashboard:
                         <ul>
                             <li><a href="/api/metrics" target="_blank">📈 Platform Metrics</a></li>
                             <li><a href="/health" target="_blank">❤️ Health Check</a></li>
-                            <li><a href="https://github.com/your-repo/USER_MANUAL.md" target="_blank">📖 Full User Manual</a></li>
+                            <li><a href="/docs/readme" target="_blank">📖 Full User Manual</a></li>
                         </ul>
                     </div>
                 </div>
@@ -419,6 +421,114 @@ class MonitoringDashboard:
                 "timestamp": system_metrics["current"]["timestamp"] if system_metrics["current"] else None,
                 "uptime_hours": system_metrics["uptime_hours"]
             })
+        
+        @app.get("/docs/readme", response_class=HTMLResponse)
+        async def serve_readme():
+            """Serve README.md as HTML"""
+            readme_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "README.md")
+            
+            if not os.path.exists(readme_path):
+                return HTMLResponse("<h1>User Manual Not Found</h1><p>Could not find README.md file.</p>", status_code=404)
+            
+            try:
+                with open(readme_path, 'r', encoding='utf-8') as f:
+                    readme_content = f.read()
+                
+                # Convert markdown to HTML
+                html_content = markdown.markdown(readme_content, extensions=['extra', 'codehilite', 'tables', 'toc'])
+                
+                # Wrap in HTML template with styling
+                full_html = f"""
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>SBOM Platform User Manual</title>
+                    <meta charset="utf-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1">
+                    <style>
+                        body {{
+                            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+                            line-height: 1.6;
+                            color: #333;
+                            max-width: 900px;
+                            margin: 0 auto;
+                            padding: 20px;
+                            background: #f5f5f5;
+                        }}
+                        h1, h2, h3, h4 {{
+                            color: #2c3e50;
+                            margin-top: 1.5em;
+                        }}
+                        h1 {{ border-bottom: 2px solid #3498db; padding-bottom: 0.3em; }}
+                        h2 {{ border-bottom: 1px solid #ecf0f1; padding-bottom: 0.2em; }}
+                        code {{
+                            background: #f8f9fa;
+                            padding: 2px 4px;
+                            border-radius: 3px;
+                            font-family: 'Consolas', 'Monaco', monospace;
+                        }}
+                        pre {{
+                            background: #2c3e50;
+                            color: #ecf0f1;
+                            padding: 15px;
+                            border-radius: 5px;
+                            overflow-x: auto;
+                        }}
+                        pre code {{
+                            background: none;
+                            color: inherit;
+                            padding: 0;
+                        }}
+                        table {{
+                            border-collapse: collapse;
+                            width: 100%;
+                            margin: 1em 0;
+                        }}
+                        th, td {{
+                            border: 1px solid #ddd;
+                            padding: 8px;
+                            text-align: left;
+                        }}
+                        th {{
+                            background: #34495e;
+                            color: white;
+                        }}
+                        tr:nth-child(even) {{
+                            background: #f8f9fa;
+                        }}
+                        a {{
+                            color: #3498db;
+                            text-decoration: none;
+                        }}
+                        a:hover {{
+                            text-decoration: underline;
+                        }}
+                        .back-link {{
+                            display: inline-block;
+                            margin-bottom: 20px;
+                            padding: 10px 20px;
+                            background: #3498db;
+                            color: white;
+                            border-radius: 4px;
+                            text-decoration: none;
+                        }}
+                        .back-link:hover {{
+                            background: #2980b9;
+                            text-decoration: none;
+                        }}
+                    </style>
+                </head>
+                <body>
+                    <a href="/dashboard" class="back-link">← Back to Dashboard</a>
+                    {html_content}
+                </body>
+                </html>
+                """
+                
+                return HTMLResponse(full_html)
+                
+            except Exception as e:
+                return HTMLResponse(f"<h1>Error</h1><p>Could not load user manual: {str(e)}</p>", status_code=500)
 
 
 # HTML template for dashboard

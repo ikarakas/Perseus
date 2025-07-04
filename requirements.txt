@@ -9,3 +9,4 @@ psutil==5.9.6
 click==8.1.7
 python-multipart==0.0.6
 packaging==23.2
+markdown==3.5.1
