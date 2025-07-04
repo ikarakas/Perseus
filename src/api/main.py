@@ -2,12 +2,13 @@
 FastAPI application for SBOM generation platform
 """
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
 import uuid
 import logging
+import time
 from datetime import datetime
 
 from .models import AnalysisRequest, AnalysisResponse, SBOMRequest
@@ -35,9 +36,30 @@ app.add_middleware(
 )
 
 # Initialize workflow engine and monitoring
-workflow_engine = WorkflowEngine()
 metrics_collector = MetricsCollector()
+workflow_engine = WorkflowEngine(metrics_collector)
 dashboard = MonitoringDashboard(metrics_collector)
+
+# Add API metrics tracking middleware
+@app.middleware("http")
+async def track_api_requests(request: Request, call_next):
+    """Track API requests for metrics"""
+    start_time = time.time()
+    
+    response = await call_next(request)
+    
+    # Calculate response time
+    response_time = time.time() - start_time
+    
+    # Record metrics
+    metrics_collector.record_api_request(
+        endpoint=request.url.path,
+        method=request.method,
+        response_time=response_time,
+        status_code=response.status_code
+    )
+    
+    return response
 
 # Setup dashboard routes
 dashboard.setup_routes(app)

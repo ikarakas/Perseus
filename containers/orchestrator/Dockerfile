@@ -8,7 +8,11 @@ RUN apk add --no-cache \
     curl \
     git \
     wget \
-    tar
+    tar \
+    gcc \
+    python3-dev \
+    musl-dev \
+    linux-headers
 
 # Install Syft
 RUN curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin

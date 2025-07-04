@@ -5,7 +5,7 @@ Metrics collection and monitoring for SBOM platform
 import time
 import logging
 import json
-# import psutil  # Will use system commands instead
+import psutil
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 from collections import defaultdict, deque
@@ -103,16 +103,28 @@ class MetricsCollector:
     def collect_system_metrics(self):
         """Collect current system metrics"""
         try:
-            # Simplified metrics collection without psutil
+            # Get CPU usage (1 second interval for accuracy)
+            cpu_percent = psutil.cpu_percent(interval=1)
+            
+            # Get memory usage
+            memory = psutil.virtual_memory()
+            memory_used_gb = memory.used / (1024**3)
+            memory_total_gb = memory.total / (1024**3)
+            
+            # Get disk usage for current working directory
+            disk = psutil.disk_usage('.')
+            disk_used_gb = disk.used / (1024**3)
+            disk_total_gb = disk.total / (1024**3)
+            
             metrics = {
                 "timestamp": datetime.utcnow().isoformat(),
-                "cpu_percent": 25.0,  # Placeholder
-                "memory_percent": 45.0,  # Placeholder
-                "memory_used_gb": 2.0,  # Placeholder
-                "memory_total_gb": 8.0,  # Placeholder
-                "disk_percent": 35.0,  # Placeholder
-                "disk_used_gb": 10.0,  # Placeholder
-                "disk_total_gb": 50.0  # Placeholder
+                "cpu_percent": round(cpu_percent, 1),
+                "memory_percent": round(memory.percent, 1),
+                "memory_used_gb": round(memory_used_gb, 2),
+                "memory_total_gb": round(memory_total_gb, 2),
+                "disk_percent": round(disk.percent, 1),
+                "disk_used_gb": round(disk_used_gb, 2),
+                "disk_total_gb": round(disk_total_gb, 2)
             }
             
             with self.metrics_lock:
@@ -122,7 +134,17 @@ class MetricsCollector:
             
         except Exception as e:
             logger.error(f"Failed to collect system metrics: {e}")
-            return None
+            # Return placeholder values if psutil fails
+            return {
+                "timestamp": datetime.utcnow().isoformat(),
+                "cpu_percent": 0.0,
+                "memory_percent": 0.0,
+                "memory_used_gb": 0.0,
+                "memory_total_gb": 0.0,
+                "disk_percent": 0.0,
+                "disk_used_gb": 0.0,
+                "disk_total_gb": 0.0
+            }
     
     def get_analysis_metrics(self) -> Dict[str, Any]:
         """Get analysis performance metrics"""

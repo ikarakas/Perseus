@@ -16,7 +16,9 @@ logger = logging.getLogger(__name__)
 class ResultStorage:
     """Manages storage and retrieval of analysis results and SBOMs"""
     
-    def __init__(self, base_path: str = "/app/data"):
+    def __init__(self, base_path: str = None):
+        if base_path is None:
+            base_path = os.path.join(os.getcwd(), "data")
         self.base_path = Path(base_path)
         self.results_path = self.base_path / "results"
         self.sboms_path = self.base_path / "sboms"
