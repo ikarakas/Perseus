@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200" viewBox="0 0 400 200">
+  <!-- NATO AWACS Aircraft Silhouette -->
+  <defs>
+    <radialGradient id="radarGradient" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" style="stop-color:#3498db;stop-opacity:0.3"/>
+      <stop offset="100%" style="stop-color:#3498db;stop-opacity:0.05"/>
+    </radialGradient>
+  </defs>
+  
+  <!-- Radar dome (rotating disc on top) -->
+  <ellipse cx="200" cy="60" rx="80" ry="12" fill="url(#radarGradient)" stroke="#3498db" stroke-width="1" opacity="0.6"/>
+  
+  <!-- Aircraft fuselage -->
+  <ellipse cx="200" cy="100" rx="120" ry="20" fill="#2c3e50" opacity="0.3"/>
+  
+  <!-- Wings -->
+  <ellipse cx="200" cy="105" rx="160" ry="8" fill="#34495e" opacity="0.25"/>
+  
+  <!-- Tail -->
+  <polygon points="320,95 350,85 350,115 320,105" fill="#2c3e50" opacity="0.3"/>
+  
+  <!-- Engines -->
+  <ellipse cx="160" cy="115" rx="15" ry="8" fill="#2c3e50" opacity="0.3"/>
+  <ellipse cx="240" cy="115" rx="15" ry="8" fill="#2c3e50" opacity="0.3"/>
+  
+  <!-- Radar sweep animation -->
+  <g opacity="0.4">
+    <line x1="200" y1="60" x2="280" y2="60" stroke="#3498db" stroke-width="2">
+      <animateTransform
+        attributeName="transform"
+        type="rotate"
+        values="0 200 60;360 200 60"
+        dur="4s"
+        repeatCount="indefinite"/>
+    </line>
+  </g>
+  
+  <!-- NATO star -->
+  <polygon points="200,40 202,46 208,46 203,50 205,56 200,52 195,56 197,50 192,46 198,46" 
+           fill="#ecf0f1" opacity="0.5"/>
+</svg>

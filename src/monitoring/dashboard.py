@@ -37,11 +37,55 @@ class MonitoringDashboard:
                 <meta charset="utf-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1">
                 <style>
-                    body {{ font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }}
-                    .header {{ background: #2c3e50; color: white; padding: 20px; margin: -20px -20px 20px -20px; }}
-                    .container {{ max-width: 1200px; margin: 0 auto; }}
+                    body {{ 
+                        font-family: Arial, sans-serif; 
+                        margin: 0; 
+                        padding: 20px; 
+                        background: #f5f5f5;
+                        background-image: url('/static/images/nato-awacs.svg');
+                        background-repeat: no-repeat;
+                        background-position: center center;
+                        background-attachment: fixed;
+                        background-size: 800px 400px;
+                        background-opacity: 0.1;
+                    }}
+                    .header {{ 
+                        background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+                        color: white; 
+                        padding: 20px; 
+                        margin: -20px -20px 20px -20px;
+                        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                        position: relative;
+                        overflow: hidden;
+                    }}
+                    .header::before {{
+                        content: '';
+                        position: absolute;
+                        top: 0;
+                        left: 0;
+                        right: 0;
+                        bottom: 0;
+                        background-image: url('/static/images/nato-awacs.svg');
+                        background-repeat: no-repeat;
+                        background-position: right center;
+                        background-size: 200px 100px;
+                        opacity: 0.15;
+                        z-index: 0;
+                    }}
+                    .header > * {{
+                        position: relative;
+                        z-index: 1;
+                    }}
+                    .container {{ max-width: 1200px; margin: 0 auto; position: relative; z-index: 2; }}
                     .grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 20px 0; }}
-                    .card {{ background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }}
+                    .card {{ 
+                        background: rgba(255, 255, 255, 0.95); 
+                        backdrop-filter: blur(5px);
+                        padding: 20px; 
+                        border-radius: 8px; 
+                        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+                        border: 1px solid rgba(255,255,255,0.2);
+                    }}
                     .card h3 {{ margin-top: 0; color: #2c3e50; }}
                     .form-group {{ margin: 15px 0; }}
                     .form-group label {{ display: block; margin-bottom: 5px; font-weight: bold; }}
@@ -60,8 +104,11 @@ class MonitoringDashboard:
             <body>
                 <div class="header">
                     <div class="container">
-                        <h1>🔍 SBOM Platform Dashboard</h1>
-                        <p>Software Bill of Materials Generation & Analysis</p>
+                        <h1>🛡️ SBOM Platform Dashboard</h1>
+                        <p>NATO-Grade Software Bill of Materials Generation & Analysis</p>
+                        <div style="font-size: 12px; opacity: 0.8; margin-top: 10px;">
+                            ⭐ Airborne Warning & Control System (AWACS) - Software Asset Monitoring
+                        </div>
                     </div>
                 </div>
                 

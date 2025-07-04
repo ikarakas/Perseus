@@ -4,12 +4,14 @@ FastAPI application for SBOM generation platform
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
 import uuid
 import logging
 import time
 from datetime import datetime
+import os
 
 from .models import AnalysisRequest, AnalysisResponse, SBOMRequest
 from ..orchestrator.workflow import WorkflowEngine
@@ -60,6 +62,11 @@ async def track_api_requests(request: Request, call_next):
     )
     
     return response
+
+# Mount static files
+static_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
+if os.path.exists(static_dir):
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 # Setup dashboard routes
 dashboard.setup_routes(app)
