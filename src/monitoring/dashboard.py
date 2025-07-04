@@ -435,7 +435,7 @@ class MonitoringDashboard:
                     readme_content = f.read()
                 
                 # Convert markdown to HTML
-                html_content = markdown.markdown(readme_content, extensions=['extra', 'codehilite', 'tables', 'toc'])
+                html_content = markdown.markdown(readme_content, extensions=['extra', 'tables', 'toc'])
                 
                 # Wrap in HTML template with styling
                 full_html = f"""

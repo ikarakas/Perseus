@@ -24,6 +24,7 @@ RUN pip3 install --break-system-packages --no-cache-dir -r requirements_minimal.
 
 COPY src/ ./src/
 COPY containers/orchestrator/app.py .
+COPY README.md .
 
 EXPOSE 8080
 
