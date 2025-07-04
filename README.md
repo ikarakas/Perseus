@@ -31,11 +31,12 @@ A containerized Software Bill of Materials (SBOM) generation platform capable of
 
 3. **Analyze source code using CLI:**
    ```bash
-   # Copy your project to data directory first
-   cp -r /path/to/your/project ./data/my-project
+   # The CLI automatically copies files - just provide any path
+   ./sbom-cli.sh analyze-source /path/to/your/project java
+   ./sbom-cli.sh analyze-source ~/Projects/my-app c++
    
-   # Run analysis
-   ./sbom-cli.sh analyze-source ./data/my-project java
+   # Or if files are already in ./data/
+   ./sbom-cli.sh analyze-source my-project java
    ```
 
 4. **Or use the REST API directly:**
@@ -85,6 +86,136 @@ The platform includes comprehensive monitoring capabilities:
 - **Analysis Tracking**: Success/failure rates, component detection statistics
 - **Alert System**: Configurable thresholds for performance monitoring
 
+## SBOM CLI Tool
+
+The platform includes a powerful command-line interface (`sbom-cli.sh`) that simplifies interaction with the SBOM platform.
+
+### Features
+
+- **Auto-file Management**: Automatically copies files from any location to the container
+- **Path Intelligence**: Handles absolute paths, relative paths, and files already in `./data/`
+- **Progress Tracking**: Real-time status updates and result formatting
+- **Error Handling**: Clear error messages and validation
+- **Dependency Checking**: Verifies platform availability before operations
+
+### Commands
+
+| Command | Description | Example |
+|---------|-------------|---------|
+| `analyze-source <path> <language>` | Analyze source code | `./sbom-cli.sh analyze-source ~/my-project java` |
+| `analyze-binary <path>` | Analyze binary files | `./sbom-cli.sh analyze-binary ./app.jar` |
+| `status <analysis-id>` | Check analysis status | `./sbom-cli.sh status abc123` |
+| `results <analysis-id>` | Get detailed results | `./sbom-cli.sh results abc123` |
+| `generate-sbom <ids> <format>` | Generate SBOM | `./sbom-cli.sh generate-sbom "id1,id2" spdx` |
+| `get-sbom <sbom-id>` | Download SBOM | `./sbom-cli.sh get-sbom xyz789` |
+| `health` | Check platform health | `./sbom-cli.sh health` |
+
+### Usage Examples
+
+**Analyze Java Project:**
+```bash
+# From anywhere on your system
+./sbom-cli.sh analyze-source /Users/dev/my-spring-app java
+
+# Track progress
+./sbom-cli.sh status <analysis-id>
+./sbom-cli.sh results <analysis-id>
+```
+
+**Analyze C++ Project:**
+```bash
+./sbom-cli.sh analyze-source ~/Projects/cpp-project c++
+```
+
+**Analyze Binary Files:**
+```bash
+./sbom-cli.sh analyze-binary /path/to/application.jar
+./sbom-cli.sh analyze-binary ~/Downloads/executable
+```
+
+**Complete SBOM Workflow:**
+```bash
+# 1. Analyze multiple projects
+./sbom-cli.sh analyze-source ~/project1 java
+./sbom-cli.sh analyze-source ~/project2 java
+
+# 2. Generate combined SBOM
+./sbom-cli.sh generate-sbom "analysis-id-1,analysis-id-2" spdx
+
+# 3. Download the SBOM
+./sbom-cli.sh get-sbom sbom-id-123
+```
+
+### Supported Formats & Languages
+
+**SBOM Formats:**
+- `spdx` - SPDX 2.3 (Software Package Data Exchange)
+- `cyclonedx` - CycloneDX 1.5 (OWASP standard)
+- `swid` - SWID (Software Identification)
+
+**Languages:**
+- `java` - Java source code and Maven projects
+- `c++` - C/C++ source code and CMake projects
+
+### Auto-Path Management
+
+The CLI intelligently handles file paths:
+
+```bash
+# Absolute paths - automatically copied to ./data/
+./sbom-cli.sh analyze-source /full/path/to/project java
+
+# Home directory paths - automatically copied
+./sbom-cli.sh analyze-source ~/my-project java
+
+# Relative paths - automatically copied
+./sbom-cli.sh analyze-source ../other-project java
+
+# Local data paths - used directly (no copying)
+./sbom-cli.sh analyze-source my-project java  # Uses ./data/my-project
+```
+
+### Output Examples
+
+**Analysis Results:**
+```
+✅ Analysis: completed
+📦 Components found: 25
+
+Components:
+   1. spring-boot-starter v2.7.0
+      Source: /app/data/my-project/pom.xml
+   2. jackson-core v2.13.3
+      Source: /app/data/my-project/pom.xml
+   ...
+
+To generate an SBOM, use: ./sbom-cli.sh generate-sbom abc123 spdx
+```
+
+**SBOM Download:**
+```
+✅ SBOM downloaded successfully!
+   File: sbom-xyz789.json
+   Components: 25
+```
+
+### Quick Reference
+
+```bash
+# Get help
+./sbom-cli.sh help
+
+# Check platform health
+./sbom-cli.sh health
+
+# Full workflow example
+./sbom-cli.sh analyze-source ~/my-project java
+./sbom-cli.sh status <analysis-id>
+./sbom-cli.sh results <analysis-id>
+./sbom-cli.sh generate-sbom "<analysis-id>" spdx
+./sbom-cli.sh get-sbom <sbom-id>
+```
+
 ## Architecture
 
 The platform consists of:
@@ -93,6 +224,7 @@ The platform consists of:
 - **Binary Analyzers**: Compiled binary analysis
 - **SBOM Generator**: Multi-format SBOM creation (SPDX, CycloneDX, SWID)
 - **Monitoring System**: Real-time metrics, dashboard, and alerting
+- **CLI Tool**: User-friendly command-line interface with auto-file management
 
 ```bash 
 Key Components:
@@ -181,6 +313,17 @@ Key Components:
 - Check what's using the port: `lsof -i :8080`
 - Stop other services or use a different port
 - Kill existing containers: `docker-compose down`
+
+**CLI script issues:**
+- Make script executable: `chmod +x sbom-cli.sh`
+- Check dependencies: `./sbom-cli.sh` (shows help and checks deps)
+- Platform not running: `docker-compose -f docker-compose-simple.yml up -d`
+- File copy failures: Check source path exists and has read permissions
+
+**SBOM generation fails:**
+- Ensure analysis completed successfully first
+- Check analysis results before generating SBOM
+- Verify analysis IDs are comma-separated: `"id1,id2,id3"`
 
 ### Viewing Logs
 
