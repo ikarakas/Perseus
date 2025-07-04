@@ -42,12 +42,12 @@ class MonitoringDashboard:
                         margin: 0; 
                         padding: 20px; 
                         background: #f5f5f5;
-                        background-image: url('/static/images/nato-awacs.svg');
+                        background-image: url('/static/images/nato-awacs-real.jpg');
                         background-repeat: no-repeat;
                         background-position: center center;
                         background-attachment: fixed;
-                        background-size: 800px 400px;
-                        background-opacity: 0.1;
+                        background-size: 900px 600px;
+                        background-opacity: 0.08;
                     }}
                     .header {{ 
                         background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
@@ -65,11 +65,11 @@ class MonitoringDashboard:
                         left: 0;
                         right: 0;
                         bottom: 0;
-                        background-image: url('/static/images/nato-awacs.svg');
+                        background-image: url('/static/images/nato-awacs-real.jpg');
                         background-repeat: no-repeat;
                         background-position: right center;
-                        background-size: 200px 100px;
-                        opacity: 0.15;
+                        background-size: 300px 200px;
+                        opacity: 0.12;
                         z-index: 0;
                     }}
                     .header > * {{
