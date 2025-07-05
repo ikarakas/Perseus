@@ -82,7 +82,67 @@ curl -X POST http://localhost:8080/analyze/source \
   }'
 ```
 
-### 2. Analyzing Binary Files
+### 2. Analyzing Docker Images
+
+#### Public Docker Hub Images
+```bash
+# Analyze popular base images
+curl -X POST http://localhost:8080/analyze/docker \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "docker",
+    "location": "nginx:latest",
+    "options": {
+      "deep_scan": true
+    }
+  }'
+
+# Analyze specific versions
+curl -X POST http://localhost:8080/analyze/docker \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "docker",
+    "location": "ubuntu:20.04",
+    "options": {
+      "deep_scan": false
+    }
+  }'
+```
+
+#### Private Registry Images
+```bash
+# Analyze images from private registries
+curl -X POST http://localhost:8080/analyze/docker \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "docker",
+    "location": "registry.example.com/myapp:v1.0",
+    "options": {
+      "deep_scan": true,
+      "docker_auth": {
+        "username": "your-username",
+        "password": "your-password",
+        "registry": "registry.example.com"
+      }
+    }
+  }'
+```
+
+#### Images with SHA256 Digests
+```bash
+# Analyze images by digest for immutable references
+curl -X POST http://localhost:8080/analyze/docker \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "docker",
+    "location": "nginx@sha256:1234567890abcdef...",
+    "options": {
+      "deep_scan": true
+    }
+  }'
+```
+
+### 3. Analyzing Binary Files
 
 #### JAR Files
 ```bash
@@ -126,7 +186,7 @@ curl -X POST http://localhost:8080/analyze/binary \
   }'
 ```
 
-### 3. Checking Analysis Status
+### 4. Checking Analysis Status
 ```bash
 # Check analysis status (replace with your analysis_id)
 curl http://localhost:8080/analyze/{analysis_id}/status
@@ -135,7 +195,7 @@ curl http://localhost:8080/analyze/{analysis_id}/status
 curl http://localhost:8080/analyze/{analysis_id}/results
 ```
 
-### 4. Generating SBOMs
+### 5. Generating SBOMs
 
 #### Generate SPDX SBOM
 ```bash
@@ -168,6 +228,7 @@ curl -X POST http://localhost:8080/sbom/generate \
   -d '{
     "analysis_ids": [
       "java-project-analysis-id",
+      "docker-image-analysis-id",
       "cpp-project-analysis-id"
     ],
     "format": "spdx",
@@ -175,7 +236,7 @@ curl -X POST http://localhost:8080/sbom/generate \
   }'
 ```
 
-### 5. Retrieving Generated SBOMs
+### 6. Retrieving Generated SBOMs
 ```bash
 # Get SBOM (replace with your sbom_id)
 curl http://localhost:8080/sbom/{sbom_id}
@@ -241,6 +302,15 @@ curl http://localhost:8080/sbom/{sbom_id} | python3 -m json.tool
 | **System Packages** | `.deb`, `.rpm`, `.apk` | Linux distribution packages |
 | **Executables** | `.exe`, ELF | Native compiled binaries |
 
+### Docker Image Analysis (New!)
+| Image Type | Format | Examples |
+|------------|--------|----------|
+| **Docker Hub** | `image:tag` | `nginx:latest`, `ubuntu:20.04`, `python:3.9-slim` |
+| **Private Registry** | `registry/image:tag` | `registry.example.com/myapp:v1.0` |
+| **Google Container Registry** | `gcr.io/project/image:tag` | `gcr.io/my-project/service:latest` |
+| **SHA256 Digests** | `image@sha256:hash` | `nginx@sha256:1234567890abcdef...` |
+| **Docker Prefix** | `docker:image:tag` | `docker:alpine:3.14` |
+
 ### Build Configuration Files (50+ Supported)
 - **Java**: `pom.xml`, `build.gradle`, `gradle.lockfile`
 - **C/C++**: `CMakeLists.txt`, `conanfile.txt/py`, `vcpkg.json`
@@ -303,6 +373,39 @@ echo "Components found: $(cat my-web-app-sbom.json | python3 -c 'import sys,json
 - All transitive dependencies automatically detected
 - Proper PURLs (e.g., `pkg:maven/org.springframework.boot/spring-boot-starter-web@3.1.0`)
 - Source location mapping to pom.xml
+
+### Docker Image Analysis Example
+```bash
+# 1. Analyze Docker image (no file copying needed)
+ANALYSIS_ID=$(curl -s -X POST http://localhost:8080/analyze/docker \
+  -H "Content-Type: application/json" \
+  -d '{"type":"docker","location":"nginx:latest","options":{"deep_scan":true}}' \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['analysis_id'])")
+
+echo "Docker Analysis ID: $ANALYSIS_ID"
+
+# 2. Wait and check results (Syft finds all packages in image layers)
+sleep 10
+curl http://localhost:8080/analyze/$ANALYSIS_ID/results | python3 -m json.tool
+
+# 3. Generate SPDX SBOM with comprehensive package data
+SBOM_ID=$(curl -s -X POST http://localhost:8080/sbom/generate \
+  -H "Content-Type: application/json" \
+  -d "{\"analysis_ids\":[\"$ANALYSIS_ID\"],\"format\":\"spdx\"}" \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['sbom_id'])")
+
+# 4. Get SBOM with container-specific metadata
+sleep 2
+curl http://localhost:8080/sbom/$SBOM_ID > nginx-docker-sbom.json
+echo "Docker SBOM saved to nginx-docker-sbom.json"
+echo "Components found: $(cat nginx-docker-sbom.json | python3 -c 'import sys,json; print(len(json.load(sys.stdin)[\"packages\"]))')"
+```
+
+**Expected Output with Docker Analysis:**
+- All system packages (e.g., nginx, openssl, zlib)
+- Debian/Alpine packages with proper versions
+- Proper PURLs (e.g., `pkg:deb/nginx@1.21.6`, `pkg:apk/musl@1.2.3`)
+- Layer-specific source locations
 
 ### JAR File Analysis Example
 ```bash
@@ -438,6 +541,7 @@ The platform provides these Syft configuration options:
 |--------|----------|-------------|
 | `POST` | `/analyze/source` | Analyze source code |
 | `POST` | `/analyze/binary` | Analyze binary files |
+| `POST` | `/analyze/docker` | Analyze Docker images |
 | `GET` | `/analyze/{id}/status` | Get analysis status |
 | `GET` | `/analyze/{id}/results` | Get analysis results |
 
@@ -515,11 +619,26 @@ cp -r /your/project ./data/
 
 ---
 
+## Docker SBOM Examples
+
+For comprehensive Docker image analysis examples, see [DOCKER_SBOM_EXAMPLES.md](DOCKER_SBOM_EXAMPLES.md) which includes:
+
+- **Complete CLI workflows** for Docker analysis
+- **Private registry authentication** examples
+- **Multiple image format support** (Docker Hub, private registries, SHA256 digests)
+- **Docker integration** with source code and binary analysis
+- **Best practices** for container SBOM generation
+
+---
+
 ## Quick Start Checklist
 
 1. ✅ Start platform: `docker-compose -f docker-compose-simple.yml up -d`
-2. ✅ Copy project to data directory: `cp -r /my/project ./data/`
-3. ✅ Submit analysis: `curl -X POST http://localhost:8080/analyze/source ...`
+2. ✅ Copy project to data directory: `cp -r /my/project ./data/` (or use Docker images directly)
+3. ✅ Submit analysis: 
+   - Source: `curl -X POST http://localhost:8080/analyze/source ...`
+   - Binary: `curl -X POST http://localhost:8080/analyze/binary ...`
+   - **Docker**: `curl -X POST http://localhost:8080/analyze/docker ...`
 4. ✅ Check results: `curl http://localhost:8080/analyze/{id}/results`
 5. ✅ Generate SBOM: `curl -X POST http://localhost:8080/sbom/generate ...`
 6. ✅ Download SBOM: `curl http://localhost:8080/sbom/{id} > sbom.json`

@@ -165,6 +165,33 @@ async def generate_sbom(request: SBOMRequest, background_tasks: BackgroundTasks)
         logger.error(f"Error starting SBOM generation: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/analyze/docker", response_model=AnalysisResponse)
+async def analyze_docker(request: AnalysisRequest, background_tasks: BackgroundTasks):
+    """Submit Docker image for analysis"""
+    try:
+        # Validate that the analysis type is Docker
+        if request.type != "docker":
+            raise HTTPException(status_code=400, detail="Analysis type must be 'docker'")
+        
+        analysis_id = str(uuid.uuid4())
+        logger.info(f"Starting Docker image analysis {analysis_id} for {request.location}")
+        
+        # Start analysis in background
+        background_tasks.add_task(
+            workflow_engine.analyze_docker,
+            analysis_id,
+            request
+        )
+        
+        return AnalysisResponse(
+            analysis_id=analysis_id,
+            status="started",
+            message="Docker image analysis initiated"
+        )
+    except Exception as e:
+        logger.error(f"Error starting Docker analysis: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/sbom/{sbom_id}")
 async def get_sbom(sbom_id: str):
     """Retrieve generated SBOM"""

@@ -123,9 +123,10 @@ class MonitoringDashboard:
                             
                             <div class="form-group">
                                 <label for="analysisType">Analysis Type:</label>
-                                <select id="analysisType" onchange="toggleLanguage()">
+                                <select id="analysisType" onchange="toggleAnalysisOptions()">
                                     <option value="source">Source Code</option>
                                     <option value="binary">Binary Files</option>
+                                    <option value="docker">Docker Image</option>
                                 </select>
                             </div>
                             
@@ -137,9 +138,17 @@ class MonitoringDashboard:
                                 </select>
                             </div>
                             
-                            <div class="form-group">
+                            <div class="form-group" id="locationGroup">
                                 <label for="location">File/Folder Path:</label>
                                 <input type="text" id="location" placeholder="/app/data/my-project" value="/app/data/">
+                            </div>
+                            
+                            <div class="form-group" id="dockerGroup" style="display: none;">
+                                <label for="dockerImage">Docker Image:</label>
+                                <input type="text" id="dockerImage" placeholder="ubuntu:latest or registry.example.com/myapp:v1.0">
+                                <small style="display: block; color: #7f8c8d; margin-top: 5px;">
+                                    Examples: nginx:latest, python:3.9-slim, ghcr.io/owner/image:tag
+                                </small>
                             </div>
                             
                             <button class="btn" onclick="submitAnalysis()">🚀 Start Analysis</button>
@@ -201,10 +210,16 @@ class MonitoringDashboard:
                             cp -r /path/to/project ./data/my-project
                         </div>
                         <div class="code">
-                            <strong>Analyze via curl:</strong><br>
+                            <strong>Analyze source code via curl:</strong><br>
                             curl -X POST http://localhost:8080/analyze/source \\<br>
                             &nbsp;&nbsp;-H "Content-Type: application/json" \\<br>
                             &nbsp;&nbsp;-d '{{"type":"source","language":"java","location":"/app/data/my-project"}}'
+                        </div>
+                        <div class="code">
+                            <strong>Analyze Docker image via curl:</strong><br>
+                            curl -X POST http://localhost:8080/analyze/docker \\<br>
+                            &nbsp;&nbsp;-H "Content-Type: application/json" \\<br>
+                            &nbsp;&nbsp;-d '{{"type":"docker","location":"ubuntu:latest"}}'
                         </div>
                         <p><strong>Useful Links:</strong></p>
                         <ul>
@@ -216,24 +231,44 @@ class MonitoringDashboard:
                 </div>
                 
                 <script>
-                    function toggleLanguage() {{
+                    function toggleAnalysisOptions() {{
                         const type = document.getElementById('analysisType').value;
                         const languageGroup = document.getElementById('languageGroup');
-                        languageGroup.style.display = type === 'source' ? 'block' : 'none';
+                        const locationGroup = document.getElementById('locationGroup');
+                        const dockerGroup = document.getElementById('dockerGroup');
+                        
+                        if (type === 'source') {{
+                            languageGroup.style.display = 'block';
+                            locationGroup.style.display = 'block';
+                            dockerGroup.style.display = 'none';
+                        }} else if (type === 'binary') {{
+                            languageGroup.style.display = 'none';
+                            locationGroup.style.display = 'block';
+                            dockerGroup.style.display = 'none';
+                        }} else if (type === 'docker') {{
+                            languageGroup.style.display = 'none';
+                            locationGroup.style.display = 'none';
+                            dockerGroup.style.display = 'block';
+                        }}
                     }}
                     
                     async function submitAnalysis() {{
                         const type = document.getElementById('analysisType').value;
                         const language = document.getElementById('language').value;
                         const location = document.getElementById('location').value;
+                        const dockerImage = document.getElementById('dockerImage').value;
                         
                         const payload = {{
-                            type: type,
-                            location: location
+                            type: type
                         }};
                         
                         if (type === 'source') {{
                             payload.language = language;
+                            payload.location = location;
+                        }} else if (type === 'binary') {{
+                            payload.location = location;
+                        }} else if (type === 'docker') {{
+                            payload.location = dockerImage;
                         }}
                         
                         try {{

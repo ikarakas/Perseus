@@ -9,6 +9,7 @@ from enum import Enum
 class AnalysisType(str, Enum):
     SOURCE = "source"
     BINARY = "binary"
+    DOCKER = "docker"
 
 class Language(str, Enum):
     CPP = "c++"
@@ -24,11 +25,12 @@ class AnalysisOptions(BaseModel):
     deep_scan: bool = Field(default=True, description="Perform deep dependency analysis")
     include_dev_dependencies: bool = Field(default=False, description="Include development dependencies")
     timeout_minutes: int = Field(default=30, description="Analysis timeout in minutes")
+    docker_auth: Optional[Dict[str, str]] = Field(default=None, description="Docker registry authentication")
 
 class AnalysisRequest(BaseModel):
     type: AnalysisType = Field(description="Type of analysis to perform")
     language: Optional[Language] = Field(default=None, description="Programming language (for source analysis)")
-    location: str = Field(description="Source location (file://, git://, s3://)")
+    location: str = Field(description="Source location (file://, git://, s3://, docker:, registry://)")
     options: Optional[AnalysisOptions] = Field(default_factory=AnalysisOptions)
 
 class AnalysisResponse(BaseModel):
