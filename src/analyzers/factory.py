@@ -4,6 +4,7 @@ Factory for creating appropriate analyzers based on language and type
 
 from typing import Optional
 from .syft_analyzer import SyftSourceAnalyzer, SyftBinaryAnalyzer
+from .syft_docker_analyzer import SyftDockerAnalyzer
 from .cpp_analyzer import CppSourceAnalyzer
 from .java_analyzer import JavaSourceAnalyzer
 from .binary_analyzer import BinaryAnalyzer
@@ -45,3 +46,8 @@ class AnalyzerFactory:
         else:
             # Legacy analyzer
             return BinaryAnalyzer()
+    
+    def get_docker_analyzer(self):
+        """Get Docker image analyzer"""
+        logger.info(f"Using Syft analyzer for Docker image analysis")
+        return SyftDockerAnalyzer()

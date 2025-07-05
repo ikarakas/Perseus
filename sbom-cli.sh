@@ -16,6 +16,7 @@ show_help() {
     echo "COMMANDS:"
     echo "  analyze-source <path> <language>   - Analyze source code (auto-copies from any path)"
     echo "  analyze-binary <path>              - Analyze binary files (auto-copies from any path)"
+    echo "  analyze-docker <image>             - Analyze Docker image"
     echo "  status <analysis-id>               - Check analysis status"
     echo "  results <analysis-id>              - Get analysis results"
     echo "  generate-sbom <analysis-ids> <format> - Generate SBOM"
@@ -30,6 +31,11 @@ show_help() {
     echo "  # Analyze binary from anywhere (auto-copies to ./data/)"
     echo "  ./sbom-cli.sh analyze-binary /path/to/application.jar"
     echo "  ./sbom-cli.sh analyze-binary ~/Downloads/executable"
+    echo ""
+    echo "  # Analyze Docker images"
+    echo "  ./sbom-cli.sh analyze-docker nginx:latest"
+    echo "  ./sbom-cli.sh analyze-docker ubuntu:20.04"
+    echo "  ./sbom-cli.sh analyze-docker registry.example.com/myapp:v1.0"
     echo ""
     echo "  # Analyze project already in ./data/"
     echo "  ./sbom-cli.sh analyze-source my-local-project java"
@@ -190,6 +196,42 @@ analyze_binary() {
     echo "   Analysis ID: $analysis_id"
     echo ""
     echo "Check status with: ./sbom-cli.sh status $analysis_id"
+}
+
+analyze_docker() {
+    local image="$1"
+    
+    if [[ -z "$image" ]]; then
+        echo "❌ Usage: analyze-docker <image>"
+        echo "   Examples:"
+        echo "     analyze-docker nginx:latest"
+        echo "     analyze-docker ubuntu:20.04"
+        echo "     analyze-docker registry.example.com/myapp:v1.0"
+        echo "     analyze-docker python:3.9-slim"
+        exit 1
+    fi
+    
+    echo ""
+    echo "🐋 Analyzing Docker image..."
+    echo "   Image: $image"
+    
+    local response=$(curl -s -X POST "$SBOM_API/analyze/docker" \
+        -H "Content-Type: application/json" \
+        -d "{\"type\":\"docker\",\"location\":\"$image\"}")
+    
+    local analysis_id=$(echo "$response" | python3 -c "import sys,json; print(json.load(sys.stdin).get('analysis_id', 'ERROR'))")
+    
+    if [[ "$analysis_id" == "ERROR" ]]; then
+        echo "❌ Analysis failed:"
+        echo "$response" | python3 -m json.tool
+        exit 1
+    fi
+    
+    echo "✅ Analysis started successfully!"
+    echo "   Analysis ID: $analysis_id"
+    echo ""
+    echo "Check status with: ./sbom-cli.sh status $analysis_id"
+    echo "Get results with: ./sbom-cli.sh results $analysis_id"
 }
 
 check_status() {
@@ -371,6 +413,9 @@ case "$1" in
         ;;
     "analyze-binary")
         analyze_binary "$2"
+        ;;
+    "analyze-docker")
+        analyze_docker "$2"
         ;;
     "status")
         check_status "$2"

@@ -6,6 +6,7 @@ A containerized Software Bill of Materials (SBOM) generation platform capable of
 
 - **Source Code Analysis**: C/C++ and Java source code dependency analysis using Syft
 - **Binary Analysis**: Static analysis of compiled executables and Java bytecode
+- **Docker Image Analysis**: Comprehensive SBOM generation for Docker containers and images
 - **Multiple SBOM Formats**: SPDX 2.3, CycloneDX 1.5, SWID
 - **Real-time Metrics**: Live system monitoring with CPU, memory, and disk usage
 - **Interactive Dashboard**: Web-based monitoring interface with auto-refresh
@@ -29,11 +30,16 @@ A containerized Software Bill of Materials (SBOM) generation platform capable of
    open http://localhost:8080/dashboard
    ```
 
-3. **Analyze source code using CLI:**
+3. **Analyze code or Docker images using CLI:**
    ```bash
-   # The CLI automatically copies files - just provide any path
+   # Analyze source code (CLI automatically copies files)
    ./sbom-cli.sh analyze-source /path/to/your/project java
    ./sbom-cli.sh analyze-source ~/Projects/my-app c++
+   
+   # Analyze Docker images (no file copying needed)
+   ./sbom-cli.sh analyze-docker nginx:latest
+   ./sbom-cli.sh analyze-docker ubuntu:20.04
+   ./sbom-cli.sh analyze-docker registry.example.com/myapp:v1.0
    
    # Or if files are already in ./data/
    ./sbom-cli.sh analyze-source my-project java
@@ -41,9 +47,15 @@ A containerized Software Bill of Materials (SBOM) generation platform capable of
 
 4. **Or use the REST API directly:**
    ```bash
+   # Analyze source code
    curl -X POST http://localhost:8080/analyze/source \
      -H "Content-Type: application/json" \
      -d '{"type": "source", "language": "java", "location": "/app/data/my-project"}'
+   
+   # Analyze Docker images
+   curl -X POST http://localhost:8080/analyze/docker \
+     -H "Content-Type: application/json" \
+     -d '{"type": "docker", "location": "nginx:latest"}'
    ```
 
 ### Local Development
@@ -104,6 +116,7 @@ The platform includes a powerful command-line interface (`sbom-cli.sh`) that sim
 |---------|-------------|---------|
 | `analyze-source <path> <language>` | Analyze source code | `./sbom-cli.sh analyze-source ~/my-project java` |
 | `analyze-binary <path>` | Analyze binary files | `./sbom-cli.sh analyze-binary ./app.jar` |
+| `analyze-docker <image>` | Analyze Docker images | `./sbom-cli.sh analyze-docker nginx:latest` |
 | `status <analysis-id>` | Check analysis status | `./sbom-cli.sh status abc123` |
 | `results <analysis-id>` | Get detailed results | `./sbom-cli.sh results abc123` |
 | `generate-sbom <ids> <format>` | Generate SBOM | `./sbom-cli.sh generate-sbom "id1,id2" spdx` |
@@ -133,14 +146,30 @@ The platform includes a powerful command-line interface (`sbom-cli.sh`) that sim
 ./sbom-cli.sh analyze-binary ~/Downloads/executable
 ```
 
+**Analyze Docker Images:**
+```bash
+# Public images from Docker Hub
+./sbom-cli.sh analyze-docker nginx:latest
+./sbom-cli.sh analyze-docker ubuntu:20.04
+./sbom-cli.sh analyze-docker python:3.9-slim
+
+# Private registry images
+./sbom-cli.sh analyze-docker registry.example.com/myapp:v1.0
+./sbom-cli.sh analyze-docker gcr.io/project/service:tag
+
+# Images with SHA256 digests
+./sbom-cli.sh analyze-docker nginx@sha256:abc123...
+```
+
 **Complete SBOM Workflow:**
 ```bash
-# 1. Analyze multiple projects
+# 1. Analyze multiple sources
 ./sbom-cli.sh analyze-source ~/project1 java
-./sbom-cli.sh analyze-source ~/project2 java
+./sbom-cli.sh analyze-docker nginx:latest
+./sbom-cli.sh analyze-binary ~/app.jar
 
 # 2. Generate combined SBOM
-./sbom-cli.sh generate-sbom "analysis-id-1,analysis-id-2" spdx
+./sbom-cli.sh generate-sbom "analysis-id-1,analysis-id-2,analysis-id-3" spdx
 
 # 3. Download the SBOM
 ./sbom-cli.sh get-sbom sbom-id-123
@@ -156,6 +185,7 @@ The platform includes a powerful command-line interface (`sbom-cli.sh`) that sim
 **Languages:**
 - `java` - Java source code and Maven projects
 - `c++` - C/C++ source code and CMake projects
+- Docker images with automatic package detection (Alpine APK, Debian/Ubuntu DEB, etc.)
 
 ### Auto-Path Management
 
@@ -263,6 +293,7 @@ Key Components:
 
   - POST /analyze/source - Analyze source code
   - POST /analyze/binary - Analyze compiled binaries
+  - POST /analyze/docker - Analyze Docker images
   - GET /analyze/{id}/status - Check analysis status
   - GET /analyze/{id}/results - Get analysis results
   - POST /sbom/generate - Generate SBOM from results

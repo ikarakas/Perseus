@@ -201,6 +201,64 @@ class WorkflowEngine:
             
             raise
     
+    async def analyze_docker(self, analysis_id: str, request: AnalysisRequest) -> None:
+        """Analyze Docker images"""
+        try:
+            self.active_analyses[analysis_id] = {
+                "status": "running",
+                "start_time": datetime.utcnow(),
+                "type": "docker",
+                "request": request.dict()
+            }
+            
+            logger.info(f"Starting Docker image analysis {analysis_id} for {request.location}")
+            
+            # Record analysis start in metrics
+            if self.metrics_collector:
+                self.metrics_collector.record_analysis_start(analysis_id, "docker")
+            
+            # Get Docker analyzer
+            analyzer = self.analyzer_factory.get_docker_analyzer()
+            
+            # Run analysis
+            results = await analyzer.analyze(request.location, request.options)
+            
+            # Set the analysis ID in the results
+            results.analysis_id = analysis_id
+            
+            # Store results
+            self.storage.store_analysis_result(analysis_id, results)
+            
+            self.active_analyses[analysis_id].update({
+                "status": "completed",
+                "end_time": datetime.utcnow(),
+                "components_found": len(results.components)
+            })
+            
+            # Record analysis completion in metrics
+            if self.metrics_collector:
+                self.metrics_collector.record_analysis_completion(
+                    analysis_id, "docker", None, 
+                    success=True, components_found=len(results.components)
+                )
+            
+            logger.info(f"Completed Docker image analysis {analysis_id}")
+            
+        except Exception as e:
+            logger.error(f"Docker image analysis {analysis_id} failed: {e}")
+            self.active_analyses[analysis_id].update({
+                "status": "failed",
+                "error": str(e),
+                "end_time": datetime.utcnow()
+            })
+            
+            # Record analysis failure in metrics
+            if self.metrics_collector:
+                self.metrics_collector.record_analysis_completion(
+                    analysis_id, "docker", None, 
+                    success=False, components_found=0
+                )
+    
     def get_sbom(self, sbom_id: str) -> Optional[Dict[str, Any]]:
         """Get generated SBOM"""
         return self.storage.get_sbom(sbom_id)
