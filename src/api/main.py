@@ -192,6 +192,33 @@ async def analyze_docker(request: AnalysisRequest, background_tasks: BackgroundT
         logger.error(f"Error starting Docker analysis: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/analyze/os", response_model=AnalysisResponse)
+async def analyze_os(request: AnalysisRequest, background_tasks: BackgroundTasks):
+    """Submit OS for analysis"""
+    try:
+        # Validate that the analysis type is OS
+        if request.type != "os":
+            raise HTTPException(status_code=400, detail="Analysis type must be 'os'")
+        
+        analysis_id = str(uuid.uuid4())
+        logger.info(f"Starting OS analysis {analysis_id} for {request.location}")
+        
+        # Start analysis in background
+        background_tasks.add_task(
+            workflow_engine.analyze_os,
+            analysis_id,
+            request
+        )
+        
+        return AnalysisResponse(
+            analysis_id=analysis_id,
+            status="started",
+            message="OS analysis initiated"
+        )
+    except Exception as e:
+        logger.error(f"Error starting OS analysis: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/sbom/{sbom_id}")
 async def get_sbom(sbom_id: str):
     """Retrieve generated SBOM"""

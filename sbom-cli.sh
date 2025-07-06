@@ -17,6 +17,7 @@ show_help() {
     echo "  analyze-source <path> <language>   - Analyze source code (auto-copies from any path)"
     echo "  analyze-binary <path>              - Analyze binary files (auto-copies from any path)"
     echo "  analyze-docker <image>             - Analyze Docker image"
+    echo "  analyze-os                         - Analyze local OS (Linux only)"
     echo "  status <analysis-id>               - Check analysis status"
     echo "  results <analysis-id>              - Get analysis results"
     echo "  generate-sbom <analysis-ids> <format> - Generate SBOM"
@@ -39,6 +40,9 @@ show_help() {
     echo ""
     echo "  # Analyze project already in ./data/"
     echo "  ./sbom-cli.sh analyze-source my-local-project java"
+    echo ""
+    echo "  # Analyze local OS"
+    echo "  ./sbom-cli.sh analyze-os"
     echo ""
     echo "  # Generate SPDX SBOM"
     echo "  ./sbom-cli.sh generate-sbom \"analysis-id-1,analysis-id-2\" spdx"
@@ -380,6 +384,30 @@ with open('$filename') as f:
     fi
 }
 
+analyze_os() {
+    echo ""
+    echo "🖥️  Analyzing local operating system..."
+    echo "   Note: Currently supports Linux only"
+    
+    local response=$(curl -s -X POST "$SBOM_API/analyze/os" \
+        -H "Content-Type: application/json" \
+        -d "{\"type\":\"os\",\"location\":\"localhost\"}")
+    
+    local analysis_id=$(echo "$response" | python3 -c "import sys,json; print(json.load(sys.stdin).get('analysis_id', 'ERROR'))")
+    
+    if [[ "$analysis_id" == "ERROR" ]]; then
+        echo "❌ Analysis failed:"
+        echo "$response" | python3 -m json.tool
+        exit 1
+    fi
+    
+    echo "✅ OS analysis started successfully!"
+    echo "   Analysis ID: $analysis_id"
+    echo ""
+    echo "Check status with: ./sbom-cli.sh status $analysis_id"
+    echo "Get results with: ./sbom-cli.sh results $analysis_id"
+}
+
 check_health() {
     echo "❤️ Checking platform health..."
     
@@ -416,6 +444,9 @@ case "$1" in
         ;;
     "analyze-docker")
         analyze_docker "$2"
+        ;;
+    "analyze-os")
+        analyze_os
         ;;
     "status")
         check_status "$2"

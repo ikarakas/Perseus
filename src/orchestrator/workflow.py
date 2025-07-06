@@ -201,6 +201,64 @@ class WorkflowEngine:
             
             raise
     
+    async def analyze_os(self, analysis_id: str, request: AnalysisRequest) -> None:
+        """Analyze operating system"""
+        try:
+            self.active_analyses[analysis_id] = {
+                "status": "running",
+                "start_time": datetime.utcnow(),
+                "type": "os",
+                "request": request.dict()
+            }
+            
+            logger.info(f"Starting OS analysis {analysis_id}")
+            
+            # Record analysis start in metrics
+            if self.metrics_collector:
+                self.metrics_collector.record_analysis_start(analysis_id, "os")
+            
+            # Get OS analyzer
+            analyzer = self.analyzer_factory.get_os_analyzer()
+            
+            # Run analysis
+            results = await analyzer.analyze(request.location, request.options)
+            
+            # Set the analysis ID in the results
+            results.analysis_id = analysis_id
+            
+            # Store results
+            self.storage.store_analysis_result(analysis_id, results)
+            
+            self.active_analyses[analysis_id].update({
+                "status": "completed",
+                "end_time": datetime.utcnow(),
+                "components_found": len(results.components)
+            })
+            
+            # Record analysis completion in metrics
+            if self.metrics_collector:
+                self.metrics_collector.record_analysis_completion(
+                    analysis_id, "os", None, 
+                    success=True, components_found=len(results.components)
+                )
+            
+            logger.info(f"Completed OS analysis {analysis_id}")
+            
+        except Exception as e:
+            logger.error(f"OS analysis {analysis_id} failed: {e}")
+            self.active_analyses[analysis_id].update({
+                "status": "failed",
+                "error": str(e),
+                "end_time": datetime.utcnow()
+            })
+            
+            # Record analysis failure in metrics
+            if self.metrics_collector:
+                self.metrics_collector.record_analysis_completion(
+                    analysis_id, "os", None, 
+                    success=False, components_found=0
+                )
+    
     async def analyze_docker(self, analysis_id: str, request: AnalysisRequest) -> None:
         """Analyze Docker images"""
         try:

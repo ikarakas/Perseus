@@ -1,0 +1,14 @@
+{
+  "analysis_id": "os-Ilkers-MacBook-Pro.fritz.box-1751737152",
+  "status": "error",
+  "metadata": {
+    "os_type": "Darwin",
+    "hostname": "Ilkers-MacBook-Pro.fritz.box",
+    "architecture": "arm64",
+    "analysis_timestamp": "2025-07-05 19:39:12"
+  },
+  "components": [],
+  "errors": [
+    "OS analysis currently only supports Linux. Detected: Darwin"
+  ]
+}

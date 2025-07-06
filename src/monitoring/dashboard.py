@@ -101,6 +101,8 @@ class MonitoringDashboard:
                     .status-good {{ color: #27ae60; }}
                     .code {{ background: #f8f9fa; padding: 10px; border-radius: 4px; font-family: monospace; margin: 10px 0; }}
                     .results {{ margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 4px; display: none; }}
+                    .os-info {{ background: #e8f4fd; padding: 10px; border-radius: 4px; margin: 10px 0; border-left: 4px solid #3498db; }}
+                    .component-breakdown {{ margin-left: 20px; }}
                 </style>
             </head>
             <body>
@@ -120,6 +122,9 @@ class MonitoringDashboard:
                         <div class="card">
                             <h3>📁 Submit Analysis</h3>
                             <p><strong>Note:</strong> Files must be copied to the <code>./data/</code> directory first.</p>
+                            <div class="os-info" style="display: none;" id="osInfo">
+                                <strong>🖥️ OS Analysis:</strong> Generates Bill of Materials for the local Linux system including kernel, modules, packages, libraries, and security features. Currently supports Debian, Ubuntu, RHEL, CentOS, Fedora, Arch, Alpine, and Gentoo distributions.
+                            </div>
                             
                             <div class="form-group">
                                 <label for="analysisType">Analysis Type:</label>
@@ -127,6 +132,7 @@ class MonitoringDashboard:
                                     <option value="source">Source Code</option>
                                     <option value="binary">Binary Files</option>
                                     <option value="docker">Docker Image</option>
+                                    <option value="os">Operating System</option>
                                 </select>
                             </div>
                             
@@ -148,6 +154,14 @@ class MonitoringDashboard:
                                 <input type="text" id="dockerImage" placeholder="ubuntu:latest or registry.example.com/myapp:v1.0">
                                 <small style="display: block; color: #7f8c8d; margin-top: 5px;">
                                     Examples: nginx:latest, python:3.9-slim, ghcr.io/owner/image:tag
+                                </small>
+                            </div>
+                            
+                            <div class="form-group" id="osGroup" style="display: none;">
+                                <label for="osTarget">Target System:</label>
+                                <input type="text" id="osTarget" value="localhost" readonly>
+                                <small style="display: block; color: #7f8c8d; margin-top: 5px;">
+                                    Currently only supports local Linux system analysis
                                 </small>
                             </div>
                             
@@ -221,6 +235,12 @@ class MonitoringDashboard:
                             &nbsp;&nbsp;-H "Content-Type: application/json" \\<br>
                             &nbsp;&nbsp;-d '{{"type":"docker","location":"ubuntu:latest"}}'
                         </div>
+                        <div class="code">
+                            <strong>Analyze OS (Linux only) via curl:</strong><br>
+                            curl -X POST http://localhost:8080/analyze/os \\<br>
+                            &nbsp;&nbsp;-H "Content-Type: application/json" \\<br>
+                            &nbsp;&nbsp;-d '{{"type":"os","location":"localhost"}}'
+                        </div>
                         <p><strong>Useful Links:</strong></p>
                         <ul>
                             <li><a href="/api/metrics" target="_blank">📈 Platform Metrics</a></li>
@@ -236,19 +256,33 @@ class MonitoringDashboard:
                         const languageGroup = document.getElementById('languageGroup');
                         const locationGroup = document.getElementById('locationGroup');
                         const dockerGroup = document.getElementById('dockerGroup');
+                        const osGroup = document.getElementById('osGroup');
+                        const osInfo = document.getElementById('osInfo');
                         
                         if (type === 'source') {{
                             languageGroup.style.display = 'block';
                             locationGroup.style.display = 'block';
                             dockerGroup.style.display = 'none';
+                            osGroup.style.display = 'none';
+                            osInfo.style.display = 'none';
                         }} else if (type === 'binary') {{
                             languageGroup.style.display = 'none';
                             locationGroup.style.display = 'block';
                             dockerGroup.style.display = 'none';
+                            osGroup.style.display = 'none';
+                            osInfo.style.display = 'none';
                         }} else if (type === 'docker') {{
                             languageGroup.style.display = 'none';
                             locationGroup.style.display = 'none';
                             dockerGroup.style.display = 'block';
+                            osGroup.style.display = 'none';
+                            osInfo.style.display = 'none';
+                        }} else if (type === 'os') {{
+                            languageGroup.style.display = 'none';
+                            locationGroup.style.display = 'none';
+                            dockerGroup.style.display = 'none';
+                            osGroup.style.display = 'block';
+                            osInfo.style.display = 'block';
                         }}
                     }}
                     
@@ -269,6 +303,8 @@ class MonitoringDashboard:
                             payload.location = location;
                         }} else if (type === 'docker') {{
                             payload.location = dockerImage;
+                        }} else if (type === 'os') {{
+                            payload.location = 'localhost';
                         }}
                         
                         try {{
@@ -308,13 +344,38 @@ class MonitoringDashboard:
                             const results = await resultsResponse.json();
                             
                             const resultsDiv = document.getElementById('analysisResults');
-                            resultsDiv.innerHTML = `
+                            let resultsHtml = `
                                 <h4>📊 Analysis Results</h4>
                                 <p><strong>Status:</strong> ${{status.status}}</p>
                                 <p><strong>Components Found:</strong> ${{results.components ? results.components.length : 0}}</p>
                                 <p><strong>Analysis ID:</strong> ${{analysisId}}</p>
-                                <p><em>Use this Analysis ID to generate an SBOM below.</em></p>
                             `;
+                            
+                            // Add OS-specific information if available
+                            if (results.metadata && results.metadata.distribution) {{
+                                resultsHtml += `
+                                    <p><strong>Distribution:</strong> ${{results.metadata.distribution.NAME || 'Unknown'}} ${{results.metadata.distribution.VERSION || ''}}</p>
+                                    <p><strong>Package Manager:</strong> ${{results.metadata.package_manager || 'None detected'}}</p>
+                                `;
+                                
+                                // Show component breakdown
+                                const componentTypes = {{}};
+                                if (results.components) {{
+                                    results.components.forEach(comp => {{
+                                        const type = comp.type || 'unknown';
+                                        componentTypes[type] = (componentTypes[type] || 0) + 1;
+                                    }});
+                                    
+                                    resultsHtml += '<p><strong>Component Breakdown:</strong></p><ul>';
+                                    Object.entries(componentTypes).forEach(([type, count]) => {{
+                                        resultsHtml += `<li>${{type}}: ${{count}}</li>`;
+                                    }});
+                                    resultsHtml += '</ul>';
+                                }}
+                            }}
+                            
+                            resultsHtml += '<p><em>Use this Analysis ID to generate an SBOM below.</em></p>';
+                            resultsDiv.innerHTML = resultsHtml;
                         }} catch (error) {{
                             console.error('Error checking status:', error);
                         }}
