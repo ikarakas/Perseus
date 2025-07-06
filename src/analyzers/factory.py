@@ -8,6 +8,7 @@ from .syft_docker_analyzer import SyftDockerAnalyzer
 from .cpp_analyzer import CppSourceAnalyzer
 from .java_analyzer import JavaSourceAnalyzer
 from .binary_analyzer import BinaryAnalyzer
+from .os_analyzer import OSAnalyzer
 from ..api.models import Language
 import logging
 
@@ -51,3 +52,8 @@ class AnalyzerFactory:
         """Get Docker image analyzer"""
         logger.info(f"Using Syft analyzer for Docker image analysis")
         return SyftDockerAnalyzer()
+    
+    def get_os_analyzer(self):
+        """Get OS-level analyzer"""
+        logger.info(f"Using OS analyzer for operating system analysis")
+        return OSAnalyzer()

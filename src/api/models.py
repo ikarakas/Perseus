@@ -10,6 +10,7 @@ class AnalysisType(str, Enum):
     SOURCE = "source"
     BINARY = "binary"
     DOCKER = "docker"
+    OS = "os"
 
 class Language(str, Enum):
     CPP = "c++"
