@@ -1,4 +1,3 @@
-
 services:
   orchestrator:
     build:
@@ -8,49 +7,7 @@ services:
       - "8080:8080"
     volumes:
       - ./data:/app/data
-      - /var/run/docker.sock:/var/run/docker.sock
     environment:
       - API_HOST=0.0.0.0
       - API_PORT=8080
       - LOG_LEVEL=INFO
-    depends_on:
-      - cpp-analyzer
-      - java-analyzer
-      - binary-analyzer
-      - sbom-generator
-
-  cpp-analyzer:
-    build:
-      context: .
-      dockerfile: containers/cpp-analyzer/Dockerfile
-    volumes:
-      - ./data:/app/data
-    environment:
-      - ANALYZER_TYPE=cpp
-
-  java-analyzer:
-    build:
-      context: .
-      dockerfile: containers/java-analyzer/Dockerfile
-    volumes:
-      - ./data:/app/data
-    environment:
-      - ANALYZER_TYPE=java
-
-  binary-analyzer:
-    build:
-      context: .
-      dockerfile: containers/binary-analyzer/Dockerfile
-    volumes:
-      - ./data:/app/data
-    environment:
-      - ANALYZER_TYPE=binary
-
-  sbom-generator:
-    build:
-      context: .
-      dockerfile: containers/sbom-generator/Dockerfile
-    volumes:
-      - ./data:/app/data
-    environment:
-      - GENERATOR_TYPE=sbom
