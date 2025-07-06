@@ -186,7 +186,29 @@ curl -X POST http://localhost:8080/analyze/binary \
   }'
 ```
 
-### 4. Checking Analysis Status
+### 4. Analyzing OS Packages
+
+#### Linux System Analysis
+```bash
+# Analyze current Linux system packages
+curl -X POST http://localhost:8080/analyze/os \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "os",
+    "options": {
+      "deep_scan": true
+    }
+  }'
+
+# Note: This feature requires running on a Linux system
+# Supported distributions:
+# - Alpine Linux (APK packages)
+# - Ubuntu/Debian (DEB packages)
+# - CentOS/RHEL/Fedora (RPM packages)
+# - Arch Linux (pacman packages)
+```
+
+### 5. Checking Analysis Status
 ```bash
 # Check analysis status (replace with your analysis_id)
 curl http://localhost:8080/analyze/{analysis_id}/status
@@ -195,7 +217,7 @@ curl http://localhost:8080/analyze/{analysis_id}/status
 curl http://localhost:8080/analyze/{analysis_id}/results
 ```
 
-### 5. Generating SBOMs
+### 6. Generating SBOMs
 
 #### Generate SPDX SBOM
 ```bash
@@ -236,7 +258,7 @@ curl -X POST http://localhost:8080/sbom/generate \
   }'
 ```
 
-### 6. Retrieving Generated SBOMs
+### 7. Retrieving Generated SBOMs
 ```bash
 # Get SBOM (replace with your sbom_id)
 curl http://localhost:8080/sbom/{sbom_id}
@@ -310,6 +332,15 @@ curl http://localhost:8080/sbom/{sbom_id} | python3 -m json.tool
 | **Google Container Registry** | `gcr.io/project/image:tag` | `gcr.io/my-project/service:latest` |
 | **SHA256 Digests** | `image@sha256:hash` | `nginx@sha256:1234567890abcdef...` |
 | **Docker Prefix** | `docker:image:tag` | `docker:alpine:3.14` |
+
+### OS Package Analysis (New!)
+| OS Type | Package Manager | Package Formats |
+|---------|-----------------|------------------|
+| **Alpine Linux** | APK | `.apk` packages |
+| **Debian/Ubuntu** | APT/DPKG | `.deb` packages |
+| **RHEL/CentOS/Fedora** | YUM/DNF/RPM | `.rpm` packages |
+| **Arch Linux** | pacman | pacman database |
+| **openSUSE** | zypper/RPM | `.rpm` packages |
 
 ### Build Configuration Files (50+ Supported)
 - **Java**: `pom.xml`, `build.gradle`, `gradle.lockfile`
@@ -406,6 +437,39 @@ echo "Components found: $(cat nginx-docker-sbom.json | python3 -c 'import sys,js
 - Debian/Alpine packages with proper versions
 - Proper PURLs (e.g., `pkg:deb/nginx@1.21.6`, `pkg:apk/musl@1.2.3`)
 - Layer-specific source locations
+
+### OS Package Analysis Example
+```bash
+# 1. Analyze current Linux system packages
+ANALYSIS_ID=$(curl -s -X POST http://localhost:8080/analyze/os \
+  -H "Content-Type: application/json" \
+  -d '{"type":"os","options":{"deep_scan":true}}' \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['analysis_id'])")
+
+echo "OS Analysis ID: $ANALYSIS_ID"
+
+# 2. Wait and check results (Syft finds all installed packages)
+sleep 5
+curl http://localhost:8080/analyze/$ANALYSIS_ID/results | python3 -m json.tool
+
+# 3. Generate SPDX SBOM with system package data
+SBOM_ID=$(curl -s -X POST http://localhost:8080/sbom/generate \
+  -H "Content-Type: application/json" \
+  -d "{\"analysis_ids\":[\"$ANALYSIS_ID\"],\"format\":\"spdx\"}" \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['sbom_id'])")
+
+# 4. Get SBOM with OS-specific metadata
+sleep 2
+curl http://localhost:8080/sbom/$SBOM_ID > os-packages-sbom.json
+echo "OS SBOM saved to os-packages-sbom.json"
+echo "Packages found: $(cat os-packages-sbom.json | python3 -c 'import sys,json; print(len(json.load(sys.stdin)[\"packages\"]))')"
+```
+
+**Expected Output with OS Analysis:**
+- All installed system packages (e.g., bash, glibc, openssl)
+- Package manager-specific versions (APK, DEB, RPM)
+- Proper PURLs (e.g., `pkg:apk/alpine/busybox@1.35.0`, `pkg:deb/ubuntu/bash@5.0`)
+- Installation metadata and file locations
 
 ### JAR File Analysis Example
 ```bash
@@ -542,6 +606,7 @@ The platform provides these Syft configuration options:
 | `POST` | `/analyze/source` | Analyze source code |
 | `POST` | `/analyze/binary` | Analyze binary files |
 | `POST` | `/analyze/docker` | Analyze Docker images |
+| `POST` | `/analyze/os` | Analyze OS packages |
 | `GET` | `/analyze/{id}/status` | Get analysis status |
 | `GET` | `/analyze/{id}/results` | Get analysis results |
 

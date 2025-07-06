@@ -7,6 +7,7 @@ A containerized Software Bill of Materials (SBOM) generation platform capable of
 - **Source Code Analysis**: C/C++ and Java source code dependency analysis using Syft
 - **Binary Analysis**: Static analysis of compiled executables and Java bytecode
 - **Docker Image Analysis**: Comprehensive SBOM generation for Docker containers and images
+- **OS Analysis**: System-level package detection for Linux distributions
 - **Multiple SBOM Formats**: SPDX 2.3, CycloneDX 1.5, SWID
 - **Real-time Metrics**: Live system monitoring with CPU, memory, and disk usage
 - **Interactive Dashboard**: Web-based monitoring interface with auto-refresh
@@ -41,6 +42,9 @@ A containerized Software Bill of Materials (SBOM) generation platform capable of
    ./sbom-cli.sh analyze-docker ubuntu:20.04
    ./sbom-cli.sh analyze-docker registry.example.com/myapp:v1.0
    
+   # Analyze OS packages (Linux only)
+   ./sbom-cli.sh analyze-os
+   
    # Or if files are already in ./data/
    ./sbom-cli.sh analyze-source my-project java
    ```
@@ -56,6 +60,11 @@ A containerized Software Bill of Materials (SBOM) generation platform capable of
    curl -X POST http://localhost:8080/analyze/docker \
      -H "Content-Type: application/json" \
      -d '{"type": "docker", "location": "nginx:latest"}'
+   
+   # Analyze OS packages
+   curl -X POST http://localhost:8080/analyze/os \
+     -H "Content-Type: application/json" \
+     -d '{"type": "os"}'
    ```
 
 ### Local Development
@@ -117,6 +126,7 @@ The platform includes a powerful command-line interface (`sbom-cli.sh`) that sim
 | `analyze-source <path> <language>` | Analyze source code | `./sbom-cli.sh analyze-source ~/my-project java` |
 | `analyze-binary <path>` | Analyze binary files | `./sbom-cli.sh analyze-binary ./app.jar` |
 | `analyze-docker <image>` | Analyze Docker images | `./sbom-cli.sh analyze-docker nginx:latest` |
+| `analyze-os` | Analyze OS packages | `./sbom-cli.sh analyze-os` |
 | `status <analysis-id>` | Check analysis status | `./sbom-cli.sh status abc123` |
 | `results <analysis-id>` | Get detailed results | `./sbom-cli.sh results abc123` |
 | `generate-sbom <ids> <format>` | Generate SBOM | `./sbom-cli.sh generate-sbom "id1,id2" spdx` |
@@ -161,6 +171,15 @@ The platform includes a powerful command-line interface (`sbom-cli.sh`) that sim
 ./sbom-cli.sh analyze-docker nginx@sha256:abc123...
 ```
 
+**Analyze OS Packages:**
+```bash
+# Analyze current Linux system packages
+./sbom-cli.sh analyze-os
+
+# Note: Requires Linux OS (Alpine, Ubuntu, Debian, CentOS, RHEL, etc.)
+# Detects packages installed via: APK, DEB, RPM, etc.
+```
+
 **Complete SBOM Workflow:**
 ```bash
 # 1. Analyze multiple sources
@@ -186,6 +205,7 @@ The platform includes a powerful command-line interface (`sbom-cli.sh`) that sim
 - `java` - Java source code and Maven projects
 - `c++` - C/C++ source code and CMake projects
 - Docker images with automatic package detection (Alpine APK, Debian/Ubuntu DEB, etc.)
+- OS packages with system-level detection (APK, DEB, RPM, etc.)
 
 ### Auto-Path Management
 
