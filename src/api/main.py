@@ -17,6 +17,8 @@ from .models import AnalysisRequest, AnalysisResponse, SBOMRequest
 from ..orchestrator.workflow import WorkflowEngine
 from ..monitoring.metrics import MetricsCollector
 from ..monitoring.dashboard import MonitoringDashboard
+from ..telemetry.api import router as telemetry_router, init_telemetry_api
+from ..telemetry.storage import TelemetryStorage
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -37,10 +39,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Initialize telemetry storage first
+telemetry_storage = TelemetryStorage()
+
 # Initialize workflow engine and monitoring
 metrics_collector = MetricsCollector()
 workflow_engine = WorkflowEngine(metrics_collector)
-dashboard = MonitoringDashboard(metrics_collector)
+dashboard = MonitoringDashboard(metrics_collector, telemetry_storage)
+
+# Initialize telemetry API
+init_telemetry_api(telemetry_storage)
+
+# Include telemetry router
+app.include_router(telemetry_router)
 
 # Add API metrics tracking middleware
 @app.middleware("http")

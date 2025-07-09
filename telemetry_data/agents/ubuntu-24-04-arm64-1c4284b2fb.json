@@ -1,0 +1,27 @@
+{
+  "agent_id": "ubuntu-24-04-arm64-1c4284b2fb",
+  "metadata": {
+    "agent_version": "1.0.0",
+    "hostname": "ubuntu-24-04-arm64",
+    "platform": "linux"
+  },
+  "registered_at": "2025-07-09T11:11:39.742745+00:00",
+  "last_seen": "2025-07-09T11:16:39.906641+00:00",
+  "status": {
+    "uptime": 420,
+    "last_collection": "2025-07-09T11:09:49.826143+00:00",
+    "system_info": {
+      "hostname": "ubuntu-24-04-arm64",
+      "platform": "Linux",
+      "platform_version": "#65-Ubuntu SMP PREEMPT_DYNAMIC Mon May 19 17:08:41 UTC 2025",
+      "architecture": "aarch64",
+      "processor": "aarch64",
+      "python_version": "3.12.3"
+    },
+    "config": {
+      "collection_interval": 3600,
+      "deep_scan": false
+    }
+  },
+  "last_heartbeat": "2025-07-09T11:16:39.910747Z"
+}

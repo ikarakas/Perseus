@@ -1,13 +1,30 @@
+version: '3.8'
+
 services:
-  orchestrator:
-    build:
-      context: .
-      dockerfile: containers/orchestrator/Dockerfile
+  sbom-platform:
+    build: .
     ports:
-      - "8080:8080"
+      - "8000:8000"    # Main API
+      - "9876:9876"    # Telemetry server
     volumes:
       - ./data:/app/data
+      - ./telemetry_data:/app/telemetry_data
+      - ./logs:/app/logs
     environment:
-      - API_HOST=0.0.0.0
-      - API_PORT=8080
-      - LOG_LEVEL=INFO
+      - PYTHONPATH=/app
+    networks:
+      - sbom-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  sbom-network:
+    driver: bridge
+
+volumes:
+  telemetry_data:
+  logs:
