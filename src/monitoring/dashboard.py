@@ -111,9 +111,9 @@ class MonitoringDashboard:
                 <div class="header">
                     <div class="container">
                         <h1>🛡️ SBOM Platform Dashboard</h1>
-                        <p>NATO-Grade Software Bill of Materials Generation & Analysis</p>
+                        <p>Bill of Materials Generation & Analysis</p>
                         <div style="font-size: 12px; opacity: 0.8; margin-top: 10px;">
-                            ⭐ Airborne Warning & Control System (AWACS) - Software Asset Monitoring
+                            BOM Generation - by I. KARAKAS
                         </div>
                     </div>
                 </div>
