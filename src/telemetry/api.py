@@ -25,16 +25,35 @@ telemetry_api: Optional[TelemetryAPI] = None
 @router.get("/agents")
 async def get_agents() -> Dict[str, Any]:
     """Get all registered agents."""
+    # Create storage instance directly if API not initialized
     if not telemetry_api:
-        raise HTTPException(status_code=503, detail="Telemetry service not initialized")
+        from .storage import TelemetryStorage
+        storage = TelemetryStorage()
+        agents = await storage.get_all_agents()
+    else:
+        agents = await telemetry_api.storage.get_all_agents()
     
-    agents = await telemetry_api.storage.get_all_agents()
+    # Time-based connection status
+    from datetime import datetime, timezone
+    HEARTBEAT_GRACE = 120  # seconds (2x default heartbeat interval)
+    now = datetime.now(timezone.utc)
+    for agent_id, agent in agents.items():
+        last_seen_str = agent.get("last_seen") or agent.get("last_heartbeat")
+        connected = False
+        if last_seen_str:
+            try:
+                last_seen = datetime.fromisoformat(last_seen_str.replace("Z", "+00:00"))
+                diff = (now - last_seen).total_seconds()
+                if diff < HEARTBEAT_GRACE:
+                    connected = True
+            except Exception:
+                pass
+        agent["connected"] = connected
     
-    # Add connection status if server is available
-    if telemetry_api.server:
+    # Optionally, add hard connection info if server is available
+    if telemetry_api and telemetry_api.server:
         connected_agents = telemetry_api.server.get_connected_agents()
         for agent_id in agents:
-            agents[agent_id]["connected"] = agent_id in connected_agents
             if agent_id in connected_agents:
                 agents[agent_id]["connection_info"] = connected_agents[agent_id]
     
@@ -47,10 +66,13 @@ async def get_agents() -> Dict[str, Any]:
 @router.get("/agents/{agent_id}")
 async def get_agent(agent_id: str) -> Dict[str, Any]:
     """Get specific agent information."""
+    # Create storage instance directly if API not initialized
     if not telemetry_api:
-        raise HTTPException(status_code=503, detail="Telemetry service not initialized")
-    
-    agent_info = await telemetry_api.storage.get_agent_info(agent_id)
+        from .storage import TelemetryStorage
+        storage = TelemetryStorage()
+        agent_info = await storage.get_agent_info(agent_id)
+    else:
+        agent_info = await telemetry_api.storage.get_agent_info(agent_id)
     if not agent_info:
         raise HTTPException(status_code=404, detail=f"Agent {agent_id} not found")
     
@@ -67,10 +89,13 @@ async def get_agent(agent_id: str) -> Dict[str, Any]:
 @router.get("/agents/{agent_id}/bom/latest")
 async def get_latest_bom(agent_id: str) -> Dict[str, Any]:
     """Get latest BOM data for an agent."""
+    # Create storage instance directly if API not initialized
     if not telemetry_api:
-        raise HTTPException(status_code=503, detail="Telemetry service not initialized")
-    
-    bom_data = await telemetry_api.storage.get_latest_bom(agent_id)
+        from .storage import TelemetryStorage
+        storage = TelemetryStorage()
+        bom_data = await storage.get_latest_bom(agent_id)
+    else:
+        bom_data = await telemetry_api.storage.get_latest_bom(agent_id)
     if not bom_data:
         raise HTTPException(status_code=404, detail=f"No BOM data found for agent {agent_id}")
     

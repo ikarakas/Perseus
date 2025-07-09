@@ -5,11 +5,11 @@
     "hostname": "ubuntu-24-04-arm64",
     "platform": "linux"
   },
-  "registered_at": "2025-07-09T11:45:32.018539+00:00",
-  "last_seen": "2025-07-09T11:49:32.099451+00:00",
+  "registered_at": "2025-07-09T13:11:09.534346+00:00",
+  "last_seen": "2025-07-09T13:29:25.811067+00:00",
   "status": {
-    "uptime": 900,
-    "last_collection": "2025-07-09T11:34:41.823553+00:00",
+    "uptime": 1216,
+    "last_collection": "2025-07-09T13:09:19.618299+00:00",
     "system_info": {
       "hostname": "ubuntu-24-04-arm64",
       "platform": "Linux",
@@ -23,5 +23,5 @@
       "deep_scan": false
     }
   },
-  "last_heartbeat": "2025-07-09T11:49:32.105524Z"
+  "last_heartbeat": "2025-07-09T13:29:25.814762Z"
 }

@@ -66,9 +66,7 @@ async def main():
         storage=storage
     )
     
-    # Initialize telemetry API with server reference
-    init_telemetry_api(storage, server)
-    logger.info("Telemetry API initialized with server reference")
+    # Server will run independently
     
     try:
         logger.info("Starting telemetry server...")

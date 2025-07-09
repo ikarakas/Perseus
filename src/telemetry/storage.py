@@ -170,8 +170,10 @@ class TelemetryStorage:
         """Get agent information."""
         return self.agents_cache.get(agent_id)
     
-    async def get_all_agents(self) -> Dict[str, Dict[str, Any]]:
+    async def get_all_agents(self, refresh: bool = True) -> Dict[str, Dict[str, Any]]:
         """Get all registered agents."""
+        if refresh:
+            await self._load_agents()
         return self.agents_cache.copy()
     
     async def get_latest_bom(self, agent_id: str) -> Optional[Dict[str, Any]]:

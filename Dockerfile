@@ -33,6 +33,9 @@ set -e
 
 echo "Starting SBOM Platform..."
 
+# Set Python path to include the app directory
+export PYTHONPATH="/app:$PYTHONPATH"
+
 # Start telemetry server in background
 echo "Starting telemetry server..."
 python scripts/utility/run_telemetry_server.py &
