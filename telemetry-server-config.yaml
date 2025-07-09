@@ -1,0 +1,49 @@
+# Telemetry Server Configuration
+
+# Server settings
+server:
+  host: 0.0.0.0
+  port: 9876
+  # ssl:
+  #   enabled: true
+  #   cert_file: /path/to/server.crt
+  #   key_file: /path/to/server.key
+
+# Storage settings
+storage:
+  # Storage backend (file or database)
+  type: file
+  path: ./telemetry_data
+  
+  # For database storage (future):
+  # database:
+  #   url: postgresql://user:pass@localhost/telemetry
+  #   pool_size: 10
+
+# API Integration
+api:
+  # Enable telemetry API endpoints
+  enabled: true
+  
+# Security settings
+security:
+  # Authentication method (none, token, certificate)
+  auth_method: none
+  
+  # For token auth:
+  # tokens:
+  #   - agent1: "secret-token-1"
+  #   - agent2: "secret-token-2"
+
+# Monitoring
+monitoring:
+  # Agent timeout (mark as inactive after this time)
+  agent_timeout: 300  # 5 minutes
+  
+  # Data retention
+  retention_days: 30
+
+# Logging
+logging:
+  level: INFO
+  file: telemetry-server.log

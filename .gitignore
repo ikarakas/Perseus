@@ -126,4 +126,22 @@ Thumbs.db
 
 # Temporary files
 *.tmp
-*.temp 
+*.temp
+*.bak
+
+# Project specific - data directories
+data/*
+!data/.gitkeep
+logs/*
+!logs/.gitkeep
+telemetry_data/*
+!telemetry_data/.gitkeep
+*.pid
+
+# Agent packages (keep only in releases)
+telemetry-agent-*.tar.gz
+debug-agent.tar.gz
+debug-agent/
+
+# Keep empty directories
+!.gitkeep

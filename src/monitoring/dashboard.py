@@ -12,13 +12,15 @@ from typing import Dict, Any
 import markdown
 
 from .metrics import MetricsCollector, AlertManager
+from ..telemetry.storage import TelemetryStorage
 
 class MonitoringDashboard:
     """Web dashboard for platform monitoring"""
     
-    def __init__(self, metrics_collector: MetricsCollector):
+    def __init__(self, metrics_collector: MetricsCollector, telemetry_storage: TelemetryStorage = None):
         self.metrics_collector = metrics_collector
         self.alert_manager = AlertManager(metrics_collector)
+        self.telemetry_storage = telemetry_storage
         # self.templates = Jinja2Templates(directory="templates")
     
     def setup_routes(self, app: FastAPI):
@@ -248,6 +250,31 @@ class MonitoringDashboard:
                             <li><a href="/docs/readme" target="_blank">📖 Full User Manual</a></li>
                         </ul>
                     </div>
+                    
+                    <!-- Telemetry Agents -->
+                    <div class="card">
+                        <h3>🖥️ Remote Agents</h3>
+                        <div id="telemetrySection">
+                            <div class="metrics" id="agentMetrics">
+                                <div class="metric">
+                                    <div class="metric-value" id="agentCount">0</div>
+                                    <div class="metric-label">Connected Agents</div>
+                                </div>
+                                <div class="metric">
+                                    <div class="metric-value" id="totalAgents">0</div>
+                                    <div class="metric-label">Total Registered</div>
+                                </div>
+                            </div>
+                            <div style="margin-top: 15px; margin-bottom: 15px;">
+                                <button class="btn" onclick="purgeAgents()" style="background-color: #e74c3c; color: white;">
+                                    🗑️ Purge All Agents
+                                </button>
+                            </div>
+                            <div id="agentList" style="margin-top: 15px;">
+                                <div style="color: #7f8c8d; font-style: italic;">Loading agent data...</div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 
                 <script>
@@ -455,9 +482,220 @@ class MonitoringDashboard:
                         }}
                     }}
                     
+                    // Load telemetry data
+                    async function loadTelemetryData() {{
+                        try {{
+                            const response = await fetch('/telemetry/agents');
+                            const data = await response.json();
+                            
+                            // Update metrics
+                            const connected = Object.values(data.agents).filter(agent => agent.connected).length;
+                            document.getElementById('agentCount').textContent = connected;
+                            document.getElementById('totalAgents').textContent = data.total || 0;
+                            
+                            // Update agent list
+                            const agentList = document.getElementById('agentList');
+                            if (data.total === 0) {{
+                                agentList.innerHTML = '<div style="color: #7f8c8d; font-style: italic;">No agents registered</div>';
+                            }} else {{
+                                let html = '';
+                                Object.entries(data.agents).forEach(([agentId, agent]) => {{
+                                    const status = agent.connected ? '🟢' : '🔴';
+                                    const lastSeen = new Date(agent.last_seen).toLocaleString();
+                                    const hostname = agent.metadata?.hostname || agentId;
+                                    html += `
+                                        <div style="padding: 8px; margin: 4px 0; background: #f8f9fa; border-radius: 4px; border-left: 3px solid ${{agent.connected ? '#27ae60' : '#e74c3c'}};">
+                                            <strong>${{status}} ${{hostname}}</strong><br>
+                                            <small>Last seen: ${{lastSeen}}</small>
+                                            ${{agent.last_scan ? `<br><small>Last scan: ${{agent.last_scan.component_count}} components</small>` : ''}}
+                                            <br><button class="btn" style="margin-top: 5px; padding: 4px 8px; font-size: 12px;" onclick="viewAgentBOM('${{agentId}}')">View BOM</button>
+                                        </div>
+                                    `;
+                                }});
+                                agentList.innerHTML = html;
+                            }}
+                        }} catch (error) {{
+                            console.error('Error loading telemetry data:', error);
+                            document.getElementById('agentList').innerHTML = '<div style="color: #e74c3c;">Error loading agent data</div>';
+                        }}
+                    }}
+                    
+                    // Purge all agents
+                    async function purgeAgents() {{
+                        if (!confirm('⚠️ Are you sure you want to purge all agent data?\\n\\nThis will:\\n- Disconnect all connected agents\\n- Delete all agent registration data\\n- Remove all BOM data\\n- Clear all error logs\\n\\nThis action cannot be undone.')) {{
+                            return;
+                        }}
+                        
+                        try {{
+                            const response = await fetch('/telemetry/purge', {{
+                                method: 'POST',
+                                headers: {{ 'Content-Type': 'application/json' }}
+                            }});
+                            
+                            const result = await response.json();
+                            
+                            if (response.ok) {{
+                                alert(`✅ Purge completed successfully!\\n\\nPurged:\\n- ${{result.purged.total_agents}} registered agents\\n- ${{result.purged.connected_agents}} connected agents\\n\\nAll agent data has been cleared.`);
+                                
+                                // Immediately refresh the display
+                                loadTelemetryData();
+                                loadMetrics();
+                            }} else {{
+                                alert(`❌ Purge failed: ${{result.detail || 'Unknown error'}}`);
+                            }}
+                        }} catch (error) {{
+                            alert(`❌ Error during purge: ${{error.message}}`);
+                        }}
+                    }}
+                    
                     // Load metrics on page load and refresh every 30 seconds
                     loadMetrics();
+                    loadTelemetryData();
                     setInterval(loadMetrics, 30000);
+                    setInterval(loadTelemetryData, 15000);
+                    
+                    // View Agent BOM Data
+                    async function viewAgentBOM(agentId) {{
+                        try {{
+                            // Create modal container
+                            const modal = document.createElement('div');
+                            modal.style.cssText = `
+                                position: fixed;
+                                top: 0;
+                                left: 0;
+                                width: 100%;
+                                height: 100%;
+                                background: rgba(0,0,0,0.8);
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                                z-index: 1000;
+                            `;
+                            
+                            const modalContent = document.createElement('div');
+                            modalContent.style.cssText = `
+                                background: white;
+                                padding: 20px;
+                                border-radius: 8px;
+                                max-width: 90%;
+                                max-height: 90%;
+                                overflow: auto;
+                                position: relative;
+                            `;
+                            
+                            modalContent.innerHTML = '<h3>Loading BOM data...</h3>';
+                            modal.appendChild(modalContent);
+                            document.body.appendChild(modal);
+                            
+                            // Close on background click
+                            modal.onclick = (e) => {{
+                                if (e.target === modal) {{
+                                    document.body.removeChild(modal);
+                                }}
+                            }};
+                            
+                            // Fetch BOM data
+                            const response = await fetch(`/telemetry/agents/${{agentId}}/bom/latest`);
+                            const bomData = await response.json();
+                            
+                            if (response.ok) {{
+                                let html = `
+                                    <button style="position: absolute; top: 10px; right: 10px; padding: 5px 10px;" onclick="this.parentElement.parentElement.remove()">✕</button>
+                                    <h3>📋 BOM Data for ${{agentId}}</h3>
+                                    <p><strong>Scan ID:</strong> ${{bomData.scan_id}}</p>
+                                    <p><strong>Timestamp:</strong> ${{new Date(bomData.timestamp).toLocaleString()}}</p>
+                                    <p><strong>Total Components:</strong> ${{bomData.components ? bomData.components.length : 0}}</p>
+                                    
+                                    <h4>System Information</h4>
+                                    <div style="background: #f8f9fa; padding: 10px; border-radius: 4px; margin: 10px 0;">
+                                        <strong>OS:</strong> ${{bomData.metadata.os_type}}<br>
+                                        <strong>Hostname:</strong> ${{bomData.metadata.hostname}}<br>
+                                        <strong>Architecture:</strong> ${{bomData.metadata.architecture}}<br>
+                                        <strong>Distribution:</strong> ${{bomData.metadata.distribution?.NAME || 'Unknown'}} ${{bomData.metadata.distribution?.VERSION || ''}}<br>
+                                        <strong>Package Manager:</strong> ${{bomData.metadata.package_manager || 'Unknown'}}
+                                    </div>
+                                    
+                                    <h4>Components by Type</h4>
+                                `;
+                                
+                                // Group components by type
+                                const componentsByType = {{}};
+                                if (bomData.components) {{
+                                    bomData.components.forEach(comp => {{
+                                        const type = comp.type || 'unknown';
+                                        if (!componentsByType[type]) componentsByType[type] = [];
+                                        componentsByType[type].push(comp);
+                                    }});
+                                }}
+                                
+                                // Display components grouped by type
+                                Object.entries(componentsByType).forEach(([type, components]) => {{
+                                    html += `
+                                        <details style="margin: 10px 0;">
+                                            <summary style="cursor: pointer; font-weight: bold;">
+                                                ${{type}} (${{components.length}} items)
+                                            </summary>
+                                            <div style="margin-left: 20px; margin-top: 10px;">
+                                    `;
+                                    
+                                    components.slice(0, 20).forEach(comp => {{
+                                        html += `
+                                            <div style="padding: 5px; margin: 2px 0; background: #f8f9fa; border-radius: 2px;">
+                                                <strong>${{comp.name}}</strong> ${{comp.version ? `v${{comp.version}}` : ''}}
+                                                ${{comp.purl ? `<br><small style="color: #666;">purl: ${{comp.purl}}</small>` : ''}}
+                                            </div>
+                                        `;
+                                    }});
+                                    
+                                    if (components.length > 20) {{
+                                        html += `<p style="color: #666; font-style: italic;">... and ${{components.length - 20}} more</p>`;
+                                    }}
+                                    
+                                    html += `
+                                            </div>
+                                        </details>
+                                    `;
+                                }});
+                                
+                                html += `
+                                    <div style="margin-top: 20px;">
+                                        <button class="btn" onclick="downloadAgentBOM('${{agentId}}')">Download Full BOM</button>
+                                    </div>
+                                `;
+                                
+                                modalContent.innerHTML = html;
+                            }} else {{
+                                modalContent.innerHTML = `
+                                    <button style="position: absolute; top: 10px; right: 10px;" onclick="this.parentElement.parentElement.remove()">✕</button>
+                                    <h3>❌ Error</h3>
+                                    <p>${{bomData.detail || 'Failed to load BOM data'}}</p>
+                                `;
+                            }}
+                            
+                        }} catch (error) {{
+                            console.error('Error viewing BOM:', error);
+                            alert('Failed to load BOM data');
+                        }}
+                    }}
+                    
+                    // Download Agent BOM
+                    async function downloadAgentBOM(agentId) {{
+                        try {{
+                            const response = await fetch(`/telemetry/agents/${{agentId}}/bom/latest`);
+                            const bomData = await response.json();
+                            
+                            const blob = new Blob([JSON.stringify(bomData, null, 2)], {{ type: 'application/json' }});
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = `bom-${{agentId}}-${{new Date().toISOString().split('T')[0]}}.json`;
+                            a.click();
+                            URL.revokeObjectURL(url);
+                        }} catch (error) {{
+                            console.error('Error downloading BOM:', error);
+                            alert('Failed to download BOM data');
+                        }}
+                    }}
                 </script>
             </body>
             </html>
