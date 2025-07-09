@@ -197,6 +197,25 @@ class TelemetryServer:
             }
             for agent_id, client in self.clients.items()
         }
+    
+    async def disconnect_all_agents(self) -> None:
+        """Disconnect all connected agents."""
+        logger.info(f"PURGE: Disconnecting all {len(self.clients)} connected agents")
+        
+        # Create a copy of clients to avoid modification during iteration
+        clients_to_disconnect = list(self.clients.values())
+        
+        for client in clients_to_disconnect:
+            try:
+                logger.info(f"PURGE: Closing connection to agent {client.agent_id}")
+                await client.close()
+                logger.info(f"PURGE: Agent {client.agent_id} disconnected")
+            except Exception as e:
+                logger.error(f"PURGE: Error disconnecting client {client.agent_id}: {e}")
+        
+        # Clear the clients dictionary
+        self.clients.clear()
+        logger.info("PURGE: All agents disconnected")
 
 
 async def main():

@@ -54,6 +54,10 @@ class TelemetryAgent:
         
         self.running = True
         
+        # Immediately collect and send SBOM on initial connection
+        logger.info("Initial connection established, triggering immediate SBOM collection...")
+        asyncio.create_task(self._collect_and_send())
+        
         # Start background tasks
         tasks = [
             asyncio.create_task(self._collection_loop()),
@@ -114,9 +118,14 @@ class TelemetryAgent:
             try:
                 if not self.transport.connected:
                     logger.info("Connection lost, attempting to reconnect...")
-                    await self.transport.connect()
+                    connected = await self.transport.connect()
+                    
+                    # If reconnection successful, immediately collect and send SBOM
+                    if connected:
+                        logger.info("Reconnected successfully, triggering immediate SBOM collection...")
+                        asyncio.create_task(self._collect_and_send())
                 
-                await asyncio.sleep(30)  # Check every 30 seconds
+                await asyncio.sleep(5)  # Check every 5 seconds
                 
             except Exception as e:
                 logger.error(f"Error in reconnection loop: {e}")

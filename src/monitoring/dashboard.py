@@ -265,6 +265,11 @@ class MonitoringDashboard:
                                     <div class="metric-label">Total Registered</div>
                                 </div>
                             </div>
+                            <div style="margin-top: 15px; margin-bottom: 15px;">
+                                <button class="btn" onclick="purgeAgents()" style="background-color: #e74c3c; color: white;">
+                                    🗑️ Purge All Agents
+                                </button>
+                            </div>
                             <div id="agentList" style="margin-top: 15px;">
                                 <div style="color: #7f8c8d; font-style: italic;">Loading agent data...</div>
                             </div>
@@ -512,6 +517,34 @@ class MonitoringDashboard:
                         }} catch (error) {{
                             console.error('Error loading telemetry data:', error);
                             document.getElementById('agentList').innerHTML = '<div style="color: #e74c3c;">Error loading agent data</div>';
+                        }}
+                    }}
+                    
+                    // Purge all agents
+                    async function purgeAgents() {{
+                        if (!confirm('⚠️ Are you sure you want to purge all agent data?\\n\\nThis will:\\n- Disconnect all connected agents\\n- Delete all agent registration data\\n- Remove all BOM data\\n- Clear all error logs\\n\\nThis action cannot be undone.')) {{
+                            return;
+                        }}
+                        
+                        try {{
+                            const response = await fetch('/telemetry/purge', {{
+                                method: 'POST',
+                                headers: {{ 'Content-Type': 'application/json' }}
+                            }});
+                            
+                            const result = await response.json();
+                            
+                            if (response.ok) {{
+                                alert(`✅ Purge completed successfully!\\n\\nPurged:\\n- ${{result.purged.total_agents}} registered agents\\n- ${{result.purged.connected_agents}} connected agents\\n\\nAll agent data has been cleared.`);
+                                
+                                // Immediately refresh the display
+                                loadTelemetryData();
+                                loadMetrics();
+                            }} else {{
+                                alert(`❌ Purge failed: ${{result.detail || 'Unknown error'}}`);
+                            }}
+                        }} catch (error) {{
+                            alert(`❌ Error during purge: ${{error.message}}`);
                         }}
                     }}
                     

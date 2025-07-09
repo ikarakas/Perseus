@@ -206,3 +206,30 @@ class TelemetryStorage:
                 })
         
         return history
+    
+    async def purge_all_agents(self) -> None:
+        """Purge all agent data and state."""
+        # Clear in-memory caches
+        self.agents_cache.clear()
+        self.commands_cache.clear()
+        
+        # Remove all agent files
+        for agent_file in self.agents_path.glob("*.json"):
+            try:
+                agent_file.unlink()
+            except Exception:
+                pass
+        
+        # Remove all BOM files
+        for bom_file in self.bom_path.glob("*.json"):
+            try:
+                bom_file.unlink()
+            except Exception:
+                pass
+        
+        # Remove all error files
+        for error_file in self.errors_path.glob("*.json"):
+            try:
+                error_file.unlink()
+            except Exception:
+                pass

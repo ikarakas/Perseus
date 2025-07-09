@@ -169,6 +169,41 @@ async def get_telemetry_status() -> Dict[str, Any]:
     return status
 
 
+@router.post("/purge")
+async def purge_agents() -> Dict[str, Any]:
+    """Purge all agent data and connections."""
+    if not telemetry_api:
+        raise HTTPException(status_code=503, detail="Telemetry service not initialized")
+    
+    try:
+        # Get current counts before purging
+        agents = await telemetry_api.storage.get_all_agents()
+        connected_count = 0
+        
+        if telemetry_api.server:
+            connected_agents = telemetry_api.server.get_connected_agents()
+            connected_count = len(connected_agents)
+            
+            # Disconnect all connected agents
+            await telemetry_api.server.disconnect_all_agents()
+        
+        # Purge all agent data from storage
+        await telemetry_api.storage.purge_all_agents()
+        
+        return {
+            "status": "success",
+            "message": "All agent data and connections purged",
+            "purged": {
+                "total_agents": len(agents),
+                "connected_agents": connected_count
+            },
+            "timestamp": datetime.utcnow().isoformat() + "Z"
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to purge agents: {str(e)}")
+
+
 def init_telemetry_api(storage: TelemetryStorage, server: Optional[TelemetryServer] = None) -> None:
     """Initialize the telemetry API."""
     global telemetry_api

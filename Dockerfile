@@ -36,20 +36,9 @@ echo "Starting SBOM Platform..."
 # Set Python path to include the app directory
 export PYTHONPATH="/app:$PYTHONPATH"
 
-# Start telemetry server in background
-echo "Starting telemetry server..."
-python scripts/utility/run_telemetry_server.py &
-TELEMETRY_PID=$!
-
-# Wait a moment for telemetry server to start
-sleep 2
-
-# Start main API server
-echo "Starting main API server..."
+# Start main API server with integrated telemetry server
+echo "Starting integrated API and telemetry server..."
 python -m uvicorn src.api.main:app --host 0.0.0.0 --port 8000
-
-# If main API exits, kill telemetry server
-kill $TELEMETRY_PID 2>/dev/null || true
 EOF
 
 RUN chmod +x /app/start.sh

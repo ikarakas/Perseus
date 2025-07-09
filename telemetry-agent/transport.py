@@ -76,6 +76,7 @@ class TelemetryTransport:
         
         return False
     
+    
     async def disconnect(self) -> None:
         """Disconnect from telemetry server."""
         if self.writer:
@@ -101,6 +102,13 @@ class TelemetryTransport:
             self.writer.write(data)
             await self.writer.drain()
             logger.debug(f"Sent {message.message_type.value} message")
+            
+            # Check if connection is still alive by testing the socket
+            if self.writer.is_closing():
+                logger.error("Connection closed by server")
+                self.connected = False
+                return False
+            
             return True
             
         except Exception as e:
@@ -150,19 +158,8 @@ class TelemetryTransport:
         )
         
         if await self.send_message(message):
-            # Wait for acknowledgment
-            response = await self.receive_message(timeout=10.0)
-            
-            if response and response.message_type == MessageType.ACK:
-                success = response.data.get("success", False)
-                if success:
-                    logger.info("BOM data sent successfully")
-                else:
-                    logger.error(f"Server rejected BOM data: {response.data.get('message')}")
-                return success
-            else:
-                logger.error("No acknowledgment received for BOM data")
-                return False
+            logger.info("BOM data sent successfully")
+            return True
         
         return False
     
@@ -170,18 +167,29 @@ class TelemetryTransport:
         """Send heartbeat to the server."""
         message = ProtocolHandler.create_heartbeat(self.agent_id, status)
         
-        if await self.send_message(message):
-            # Check for any commands in response
-            response = await self.receive_message(timeout=5.0)
-            
-            if response:
-                if response.message_type == MessageType.COMMAND:
-                    logger.info(f"Received command: {response.data}")
-                    # TODO: Handle commands
-                
-                return True
+        # Send heartbeat
+        if not await self.send_message(message):
+            return False
         
-        return False
+        # Check if connection is still alive by trying to read (with very short timeout)
+        try:
+            if self.reader and self.connected:
+                # Try to read with minimal timeout to detect closed connection
+                data = await asyncio.wait_for(self.reader.read(1), timeout=0.1)
+                if data == b'':
+                    # Empty data means connection closed
+                    logger.error("Server closed connection (detected during heartbeat)")
+                    self.connected = False
+                    return False
+        except asyncio.TimeoutError:
+            # No data available - connection is still alive
+            pass
+        except Exception as e:
+            logger.error(f"Connection check failed: {e}")
+            self.connected = False
+            return False
+        
+        return True
     
     async def send_error(self, error_code: str, error_message: str, details: Dict[str, Any] = None) -> bool:
         """Send error message to the server."""
@@ -214,6 +222,8 @@ class TelemetryTransport:
             if response and response.message_type == MessageType.ACK:
                 if response.data.get("success"):
                     logger.info("Authentication successful")
+                    # Brief delay to ensure connection is stable
+                    await asyncio.sleep(0.1)
                     return True
                 else:
                     logger.error(f"Authentication failed: {response.data.get('message')}")
