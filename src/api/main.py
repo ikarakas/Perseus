@@ -47,8 +47,7 @@ metrics_collector = MetricsCollector()
 workflow_engine = WorkflowEngine(metrics_collector)
 dashboard = MonitoringDashboard(metrics_collector, telemetry_storage)
 
-# Initialize telemetry API
-init_telemetry_api(telemetry_storage)
+# Telemetry API will be initialized by telemetry server
 
 # Include telemetry router
 app.include_router(telemetry_router)

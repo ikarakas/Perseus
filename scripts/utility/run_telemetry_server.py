@@ -9,6 +9,7 @@ from pathlib import Path
 
 from src.telemetry.server import TelemetryServer
 from src.telemetry.storage import TelemetryStorage
+from src.telemetry.api import init_telemetry_api
 
 
 def load_config(config_file: str) -> dict:
@@ -64,6 +65,10 @@ async def main():
         port=server_config.get('port', 9876),
         storage=storage
     )
+    
+    # Initialize telemetry API with server reference
+    init_telemetry_api(storage, server)
+    logger.info("Telemetry API initialized with server reference")
     
     try:
         logger.info("Starting telemetry server...")

@@ -35,7 +35,7 @@ echo "Starting SBOM Platform..."
 
 # Start telemetry server in background
 echo "Starting telemetry server..."
-python run_telemetry_server.py &
+python scripts/utility/run_telemetry_server.py &
 TELEMETRY_PID=$!
 
 # Wait a moment for telemetry server to start

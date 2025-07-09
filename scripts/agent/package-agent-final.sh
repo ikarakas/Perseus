@@ -1,7 +1,7 @@
 #!/bin/bash
-# Create the ultimate fixed telemetry agent package
+# Create the telemetry agent package
 
-echo "🔧 Creating FINAL FIXED telemetry agent package..."
+echo "🔧 Creating telemetry agent package..."
 
 # Clean up any previous attempts
 rm -rf telemetry-agent-final
