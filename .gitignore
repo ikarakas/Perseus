@@ -136,6 +136,8 @@ logs/*
 !logs/.gitkeep
 telemetry_data/*
 !telemetry_data/.gitkeep
+# Specifically exclude telemetry_data/bom folder
+telemetry_data/bom/
 *.pid
 
 # Agent packages (keep only in releases)
