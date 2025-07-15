@@ -14,7 +14,9 @@ show_help() {
     echo "  ./sbom-cli.sh [command] [options]"
     echo ""
     echo "COMMANDS:"
-    echo "  analyze-source <path> <language>   - Analyze source code (auto-copies from any path)"
+    echo "  analyze-source <path> <language> [--analyze-imports]"
+    echo "                                     - Analyze source code (auto-copies from any path)"
+    echo "                                       --analyze-imports: Analyze import statements (Java only)"
     echo "  analyze-binary <path>              - Analyze binary files (auto-copies from any path)"
     echo "  analyze-docker <image>             - Analyze Docker image"
     echo "  analyze-os                         - Analyze local OS (Linux only)"
@@ -126,13 +128,15 @@ prepare_source_path() {
 analyze_source() {
     local project_path="$1"
     local language="$2"
+    local analyze_imports="$3"
     
     if [[ -z "$project_path" || -z "$language" ]]; then
-        echo "❌ Usage: analyze-source <path> <language>"
+        echo "❌ Usage: analyze-source <path> <language> [--analyze-imports]"
         echo "   Examples:"
         echo "     analyze-source /path/to/my-java-project java"
         echo "     analyze-source ~/Projects/my-cpp-project c++"
         echo "     analyze-source my-local-project java  # if already in ./data/"
+        echo "     analyze-source /path/to/java-project java --analyze-imports"
         exit 1
     fi
     
@@ -145,9 +149,17 @@ analyze_source() {
     echo "   Container path: $full_path"
     echo "   Language: $language"
     
+    # Build options JSON
+    local options="{\"deep_scan\":true"
+    if [[ "$analyze_imports" == "--analyze-imports" ]]; then
+        echo "   Import analysis: enabled"
+        options="${options},\"analyze_imports\":true"
+    fi
+    options="${options}}"
+    
     local response=$(curl -s -X POST "$SBOM_API/analyze/source" \
         -H "Content-Type: application/json" \
-        -d "{\"type\":\"source\",\"language\":\"$language\",\"location\":\"$full_path\"}")
+        -d "{\"type\":\"source\",\"language\":\"$language\",\"location\":\"$full_path\",\"options\":$options}")
     
     local analysis_id=$(echo "$response" | python3 -c "import sys,json; print(json.load(sys.stdin).get('analysis_id', 'ERROR'))")
     
@@ -437,7 +449,7 @@ check_platform
 
 case "$1" in
     "analyze-source")
-        analyze_source "$2" "$3"
+        analyze_source "$2" "$3" "$4"
         ;;
     "analyze-binary")
         analyze_binary "$2"

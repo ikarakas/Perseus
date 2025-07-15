@@ -46,7 +46,9 @@ class WorkflowEngine:
                 self.metrics_collector.record_analysis_start(analysis_id, "source", request.language)
             
             # Get appropriate analyzer
-            analyzer = self.analyzer_factory.get_source_analyzer(request.language)
+            analyze_imports = request.options.analyze_imports if request.options else False
+            logger.info(f"Analyze imports option: {analyze_imports}, Options: {request.options}")
+            analyzer = self.analyzer_factory.get_source_analyzer(request.language, analyze_imports)
             
             # Run analysis
             results = await analyzer.analyze(request.location, request.options)

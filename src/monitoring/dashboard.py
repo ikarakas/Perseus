@@ -146,6 +146,16 @@ class MonitoringDashboard:
                                 </select>
                             </div>
                             
+                            <div class="form-group" id="importAnalysisGroup" style="display: block;">
+                                <label>
+                                    <input type="checkbox" id="analyzeImports" style="width: auto; margin-right: 10px;">
+                                    Analyze import statements (Java only)
+                                </label>
+                                <small style="display: block; color: #7f8c8d; margin-top: 5px;">
+                                    Detects libraries from import statements when build files are missing
+                                </small>
+                            </div>
+                            
                             <div class="form-group" id="locationGroup">
                                 <label for="location">File/Folder Path:</label>
                                 <input type="text" id="location" placeholder="/app/data/my-project" value="/app/data/">
@@ -285,27 +295,32 @@ class MonitoringDashboard:
                         const dockerGroup = document.getElementById('dockerGroup');
                         const osGroup = document.getElementById('osGroup');
                         const osInfo = document.getElementById('osInfo');
+                        const importAnalysisGroup = document.getElementById('importAnalysisGroup');
                         
                         if (type === 'source') {{
                             languageGroup.style.display = 'block';
+                            importAnalysisGroup.style.display = 'block';
                             locationGroup.style.display = 'block';
                             dockerGroup.style.display = 'none';
                             osGroup.style.display = 'none';
                             osInfo.style.display = 'none';
                         }} else if (type === 'binary') {{
                             languageGroup.style.display = 'none';
+                            importAnalysisGroup.style.display = 'none';
                             locationGroup.style.display = 'block';
                             dockerGroup.style.display = 'none';
                             osGroup.style.display = 'none';
                             osInfo.style.display = 'none';
                         }} else if (type === 'docker') {{
                             languageGroup.style.display = 'none';
+                            importAnalysisGroup.style.display = 'none';
                             locationGroup.style.display = 'none';
                             dockerGroup.style.display = 'block';
                             osGroup.style.display = 'none';
                             osInfo.style.display = 'none';
                         }} else if (type === 'os') {{
                             languageGroup.style.display = 'none';
+                            importAnalysisGroup.style.display = 'none';
                             locationGroup.style.display = 'none';
                             dockerGroup.style.display = 'none';
                             osGroup.style.display = 'block';
@@ -318,6 +333,7 @@ class MonitoringDashboard:
                         const language = document.getElementById('language').value;
                         const location = document.getElementById('location').value;
                         const dockerImage = document.getElementById('dockerImage').value;
+                        const analyzeImports = document.getElementById('analyzeImports').checked;
                         
                         const payload = {{
                             type: type
@@ -326,6 +342,13 @@ class MonitoringDashboard:
                         if (type === 'source') {{
                             payload.language = language;
                             payload.location = location;
+                            // Add options if analyze imports is checked
+                            if (analyzeImports) {{
+                                payload.options = {{
+                                    deep_scan: true,
+                                    analyze_imports: true
+                                }};
+                            }}
                         }} else if (type === 'binary') {{
                             payload.location = location;
                         }} else if (type === 'docker') {{
