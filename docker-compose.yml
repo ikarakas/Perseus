@@ -8,6 +8,7 @@ services:
       - ./data:/app/data
       - ./telemetry_data:/app/telemetry_data
       - ./logs:/app/logs
+      - /var/run/docker.sock:/var/run/docker.sock  # Docker socket access
     environment:
       - PYTHONPATH=/app
     networks:

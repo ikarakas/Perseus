@@ -8,7 +8,14 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     curl \
     git \
+    wget \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Syft for Docker image analysis
+RUN curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+
+# Install Docker CLI for Docker daemon communication
+RUN curl -fsSL https://download.docker.com/linux/static/stable/x86_64/docker-24.0.7.tgz | tar -xzC /usr/local/bin --strip=1 docker/docker
 
 # Copy requirements first for better caching
 COPY requirements.txt .

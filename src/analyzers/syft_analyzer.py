@@ -86,7 +86,7 @@ class SyftAnalyzer(BaseAnalyzer):
             # Build Syft command
             cmd = [
                 self.syft_path,
-                'packages',
+                'scan',
                 location,
                 '--output', f'syft-json={temp_output}',
                 '--quiet'

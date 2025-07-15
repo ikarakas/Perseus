@@ -143,7 +143,7 @@ class SyftDockerAnalyzer(SyftAnalyzer):
             # Build Syft command for Docker image
             cmd = [
                 self.syft_path,
-                'packages',
+                'scan',
                 image_ref,  # Direct image reference
                 '--output', f'syft-json={temp_output}',
                 '--quiet'
