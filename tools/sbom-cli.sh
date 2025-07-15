@@ -3,7 +3,7 @@
 # SBOM Platform CLI Helper Script
 # Usage: ./sbom-cli.sh [command] [options]
 
-SBOM_API="http://localhost:8080"
+SBOM_API="http://localhost:8000"
 DATA_DIR="./data"
 
 show_help() {
