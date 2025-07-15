@@ -25,9 +25,14 @@ class AnalyzerFactory:
         """
         self.use_syft = use_syft
     
-    def get_source_analyzer(self, language: Optional[Language]):
+    def get_source_analyzer(self, language: Optional[Language], analyze_imports: bool = False):
         """Get source code analyzer for specified language"""
-        if self.use_syft:
+        logger.info(f"Getting source analyzer - Language: {language}, analyze_imports: {analyze_imports}")
+        # Use JavaSourceAnalyzer if import analysis is requested for Java
+        if analyze_imports and language == Language.JAVA:
+            logger.info(f"Using Java analyzer with import analysis enabled")
+            return JavaSourceAnalyzer()
+        elif self.use_syft:
             logger.info(f"Using Syft analyzer for source code analysis")
             return SyftSourceAnalyzer()
         else:

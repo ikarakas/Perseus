@@ -299,8 +299,28 @@ class JavaSourceAnalyzer(BaseAnalyzer):
             # Try to infer library name from package
             lib_name = self._infer_library_from_package(package)
             if lib_name:
+                # Create a proper PURL for known libraries
+                purl = None
+                if lib_name == 'pcap4j':
+                    purl = 'pkg:maven/org.pcap4j/pcap4j-core'
+                elif lib_name == 'jna':
+                    purl = 'pkg:maven/net.java.dev.jna/jna'
+                elif lib_name.startswith('commons-'):
+                    artifact = lib_name[8:]  # Remove 'commons-' prefix
+                    purl = f'pkg:maven/org.apache.commons/commons-{artifact}'
+                elif lib_name.startswith('apache-'):
+                    artifact = lib_name[7:]  # Remove 'apache-' prefix
+                    purl = f'pkg:maven/org.apache/{artifact}'
+                elif lib_name.startswith('spring-'):
+                    artifact = lib_name[7:]  # Remove 'spring-' prefix
+                    purl = f'pkg:maven/org.springframework/spring-{artifact}'
+                else:
+                    # Generic PURL for other libraries
+                    purl = f'pkg:maven/unknown/{lib_name}'
+                
                 component = self._create_component(
                     name=lib_name,
+                    purl=purl,
                     source_location="inferred_from_imports"
                 )
                 components.append(component)
@@ -353,7 +373,16 @@ class JavaSourceAnalyzer(BaseAnalyzer):
             'org.mockito.': 'mockito',
             'org.hibernate.': 'hibernate',
             'com.mysql.': 'mysql-connector',
-            'org.postgresql.': 'postgresql'
+            'org.postgresql.': 'postgresql',
+            'org.pcap4j.': 'pcap4j',
+            'net.java.dev.jna.': 'jna',
+            'org.apache.commons.': 'commons-',
+            'org.apache.log4j.': 'log4j',
+            'com.amazonaws.': 'aws-java-sdk',
+            'io.netty.': 'netty',
+            'org.json.': 'json',
+            'com.auth0.': 'java-jwt',
+            'io.jsonwebtoken.': 'jjwt'
         }
         
         for pattern, lib_name in library_patterns.items():

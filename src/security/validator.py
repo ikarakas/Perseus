@@ -138,7 +138,7 @@ class SecurityValidator:
                     result["errors"].append("Invalid timeout value (must be 1-180 minutes)")
             
             # Check boolean options
-            bool_options = ["deep_scan", "include_dev_dependencies"]
+            bool_options = ["deep_scan", "include_dev_dependencies", "analyze_imports"]
             for option in bool_options:
                 if option in options and not isinstance(options[option], bool):
                     result["warnings"].append(f"Option {option} should be boolean")
