@@ -1,165 +1,209 @@
-                   GNU LESSER GENERAL PUBLIC LICENSE
-                       Version 3, 29 June 2007
+# NAEW&C Force License (NFCL) v1.0
 
- Copyright (C) 2007 Free Software Foundation, Inc. <https://fsf.org/>
- Everyone is permitted to copy and distribute verbatim copies
- of this license document, but changing it is not allowed.
+## NATO Airborne Early Warning and Control Force Software License
 
+---
 
-  This version of the GNU Lesser General Public License incorporates
-the terms and conditions of version 3 of the GNU General Public
-License, supplemented by the additional permissions listed below.
+## 1. DEFINITIONS
 
-  0. Additional Definitions.
+**"NAEW&C Force"** means the NATO Airborne Early Warning and Control Force, including all constituent units, Mission Systems Engineering Center (MSEC), and authorized representatives.
 
-  As used herein, "this License" refers to version 3 of the GNU Lesser
-General Public License, and the "GNU GPL" refers to version 3 of the GNU
-General Public License.
+**"Software"** refers to any software application, tool, library, or system and any associated documentation, source code, object code, executable files, configuration files, and related materials released under this License by NAEW&C Force.
 
-  "The Library" refers to a covered work governed by this License,
-other than an Application or a Combined Work as defined below.
+**"Derivative Work"** means any work that is based upon the Software or upon the Software and other pre-existing works.
 
-  An "Application" is any work that makes use of an interface provided
-by the Library, but which is not otherwise based on the Library.
-Defining a subclass of a class defined by the Library is deemed a mode
-of using an interface provided by the Library.
+**"Modification"** means any alteration, enhancement, improvement, or adaptation of the Software.
 
-  A "Combined Work" is a work produced by combining or linking an
-Application with the Library.  The particular version of the Library
-with which the Combined Work was made is also called the "Linked
-Version".
+**"User"** means any individual, organization, or entity that obtains, uses, modifies, or distributes the Software under this License.
 
-  The "Minimal Corresponding Source" for a Combined Work means the
-Corresponding Source for the Combined Work, excluding any source code
-for portions of the Combined Work that, considered in isolation, are
-based on the Application, and not on the Linked Version.
+**"Commercial Use"** means use of the Software for commercial, proprietary, or revenue-generating purposes.
 
-  The "Corresponding Application Code" for a Combined Work means the
-object code and/or source code for the Application, including any data
-and utility programs needed for reproducing the Combined Work from the
-Application, but excluding the System Libraries of the Combined Work.
+---
 
-  1. Exception to Section 3 of the GNU GPL.
+## 2. GRANT OF LICENSE
 
-  You may convey a covered work under sections 3 and 4 of this License
-without being bound by section 3 of the GNU GPL.
+Subject to the terms and conditions of this License, NAEW&C Force hereby grants to You a worldwide, royalty-free, non-exclusive license to:
 
-  2. Conveying Modified Versions.
+a) Use, copy, and distribute the Software in source and binary forms
+b) Modify the Software and create Derivative Works
+c) Distribute Derivative Works, provided that all requirements of this License are met
 
-  If you modify a copy of the Library, and, in your modifications, a
-facility refers to a function or data to be supplied by an Application
-that uses the facility (other than as an argument passed when the
-facility is invoked), then you may convey a copy of the modified
-version:
+---
 
-   a) under this License, provided that you make a good faith effort to
-   ensure that, in the event an Application does not supply the
-   function or data, the facility still operates, and performs
-   whatever part of its purpose remains meaningful, or
+## 3. LIFE CYCLE MANAGEMENT AUTHORITY
 
-   b) under the GNU GPL, with none of the additional permissions of
-   this License applicable to that copy.
+**3.1 Single Authority Designation**
+NAEW&C Force, through the Mission Systems Engineering Center (MSEC) at Geilenkirchen, Germany, is designated as the single, authoritative body responsible for the complete Life Cycle Management of the Software.
 
-  3. Object Code Incorporating Material from Library Header Files.
+**3.2 Life Cycle Management Responsibilities**
+NAEW&C Force retains exclusive authority over:
+- Software architecture and design decisions
+- Version control and release management
+- Security assessments and vulnerability management
+- Quality assurance and testing standards
+- Integration and interoperability requirements
+- End-of-life and retirement planning
+- Documentation and training materials
 
-  The object code form of an Application may incorporate material from
-a header file that is part of the Library.  You may convey such object
-code under terms of your choice, provided that, if the incorporated
-material is not limited to numerical parameters, data structure
-layouts and accessors, or small macros, inline functions and templates
-(ten or fewer lines in length), you do both of the following:
+**3.3 Technical Authority**
+All technical decisions regarding the Software's evolution, including but not limited to feature additions, security patches, and compatibility requirements, shall be made by or approved by NAEW&C Force.
 
-   a) Give prominent notice with each copy of the object code that the
-   Library is used in it and that the Library and its use are
-   covered by this License.
+---
 
-   b) Accompany the object code with a copy of the GNU GPL and this license
-   document.
+## 4. MANDATORY CHANGE REPORTING
 
-  4. Combined Works.
+**4.1 Modification Reporting Requirement**
+Any User who creates Modifications or Derivative Works must:
 
-  You may convey a Combined Work under terms of your choice that,
-taken together, effectively do not restrict modification of the
-portions of the Library contained in the Combined Work and reverse
-engineering for debugging such modifications, if you also do each of
-the following:
+a) Report all changes to NAEW&C Force within thirty (30) days of implementation
+b) Provide detailed documentation of the nature, scope, and purpose of all Modifications
+c) Submit source code of all Modifications in a format specified by NAEW&C Force
+d) Include comprehensive testing results and impact assessments
 
-   a) Give prominent notice with each copy of the Combined Work that
-   the Library is used in it and that the Library and its use are
-   covered by this License.
+**4.2 Reporting Procedure**
+Change reports must be submitted to:
+- **Primary Contact:** Mission Systems Engineering Center (MSEC)
+- **Address:** NATO AWACS Programme Office, Geilenkirchen Air Base, Germany
+- **Email:** ilkermurat.karakas@naew.nato.int
+- **Secure Portal:** [To be established by NAEW&C Force]
 
-   b) Accompany the Combined Work with a copy of the GNU GPL and this license
-   document.
+**4.3 Required Information**
+Each change report must include:
+- Detailed description of all Modifications
+- Rationale for the changes
+- Impact assessment on existing functionality
+- Security implications
+- Testing procedures and results
+- Contact information for the modifying party
 
-   c) For a Combined Work that displays copyright notices during
-   execution, include the copyright notice for the Library among
-   these notices, as well as a reference directing the user to the
-   copies of the GNU GPL and this license document.
+---
 
-   d) Do one of the following:
+## 5. INTEGRATION AND APPROVAL PROCESS
 
-       0) Convey the Minimal Corresponding Source under the terms of this
-       License, and the Corresponding Application Code in a form
-       suitable for, and under terms that permit, the user to
-       recombine or relink the Application with a modified version of
-       the Linked Version to produce a modified Combined Work, in the
-       manner specified by section 6 of the GNU GPL for conveying
-       Corresponding Source.
+**5.1 Review Process**
+NAEW&C Force reserves the right to:
+- Review all reported Modifications
+- Approve or reject integration of Modifications into the official Software release
+- Request additional testing or documentation
+- Require security assessments
 
-       1) Use a suitable shared library mechanism for linking with the
-       Library.  A suitable mechanism is one that (a) uses at run time
-       a copy of the Library already present on the user's computer
-       system, and (b) will operate properly with a modified version
-       of the Library that is interface-compatible with the Linked
-       Version.
+**5.2 Integration Timeline**
+NAEW&C Force will acknowledge receipt of change reports within fourteen (14) days and provide a decision on integration within ninety (90) days, unless additional review time is required for complex modifications.
 
-   e) Provide Installation Information, but only if you would otherwise
-   be required to provide such information under section 6 of the
-   GNU GPL, and only to the extent that such information is
-   necessary to install and execute a modified version of the
-   Combined Work produced by recombining or relinking the
-   Application with a modified version of the Linked Version. (If
-   you use option 4d0, the Installation Information must accompany
-   the Minimal Corresponding Source and Corresponding Application
-   Code. If you use option 4d1, you must provide the Installation
-   Information in the manner specified by section 6 of the GNU GPL
-   for conveying Corresponding Source.)
+**5.3 Official Releases**
+Only versions released and authorized by NAEW&C Force shall be considered official releases of the Software.
 
-  5. Combined Libraries.
+---
 
-  You may place library facilities that are a work based on the
-Library side by side in a single library together with other library
-facilities that are not Applications and are not covered by this
-License, and convey such a combined library under terms of your
-choice, if you do both of the following:
+## 6. ATTRIBUTION AND NOTICE REQUIREMENTS
 
-   a) Accompany the combined library with a copy of the same work based
-   on the Library, uncombined with any other library facilities,
-   conveyed under the terms of this License.
+**6.1 Attribution**
+All distributions of the Software or Derivative Works must include:
+- This complete License text
+- Copyright notice: "© NATO Airborne Early Warning and Control Force"
+- Attribution to NAEW&C Force as the original developer
+- Reference to MSEC as the development center
 
-   b) Give prominent notice with the combined library that part of it
-   is a work based on the Library, and explaining where to find the
-   accompanying uncombined form of the same work.
+**6.2 Modification Notice**
+All Derivative Works must clearly indicate:
+- That the work contains Modifications
+- The nature of the Modifications
+- The date of Modifications
+- The identity of the modifying party
 
-  6. Revised Versions of the GNU Lesser General Public License.
+---
 
-  The Free Software Foundation may publish revised and/or new versions
-of the GNU Lesser General Public License from time to time. Such new
-versions will be similar in spirit to the present version, but may
-differ in detail to address new problems or concerns.
+## 7. DISTRIBUTION REQUIREMENTS
 
-  Each version is given a distinguishing version number. If the
-Library as you received it specifies that a certain numbered version
-of the GNU Lesser General Public License "or any later version"
-applies to it, you have the option of following the terms and
-conditions either of that published version or of any later version
-published by the Free Software Foundation. If the Library as you
-received it does not specify a version number of the GNU Lesser
-General Public License, you may choose any version of the GNU Lesser
-General Public License ever published by the Free Software Foundation.
+**7.1 Source Code Availability**
+When distributing the Software or Derivative Works, You must:
+- Make source code available under the same License terms
+- Provide clear instructions for obtaining the complete source code
+- Ensure that recipients receive this License
 
-  If the Library as you received it specifies that a proxy can decide
-whether future versions of the GNU Lesser General Public License shall
-apply, that proxy's public statement of acceptance of any version is
-permanent authorization for you to choose that version for the
-Library.
+**7.2 No Additional Restrictions**
+You may not impose any additional restrictions on the rights granted by this License.
+
+---
+
+## 8. COMMERCIAL USE PROVISIONS
+
+**8.1 Commercial Use Permitted**
+Commercial use of the Software is permitted under this License, subject to all other terms and conditions.
+
+**8.2 Commercial Support**
+NAEW&C Force may, at its discretion, provide commercial support services or designate authorized support providers.
+
+---
+
+## 9. WARRANTIES AND LIABILITY
+
+**9.1 Disclaimer of Warranty**
+THE SOFTWARE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.
+
+**9.2 Limitation of Liability**
+IN NO EVENT SHALL NAEW&C FORCE BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+---
+
+## 10. COMPLIANCE AND ENFORCEMENT
+
+**10.1 License Compliance**
+Failure to comply with any provision of this License automatically terminates Your rights under this License.
+
+**10.2 Reinstatement**
+Terminated rights may be reinstated at the sole discretion of NAEW&C Force upon demonstration of compliance.
+
+**10.3 Legal Jurisdiction**
+This License shall be governed by the laws applicable to NATO organizations and international agreements.
+
+---
+
+## 11. SECURITY AND CLASSIFICATION
+
+**11.1 Security Requirements**
+Users must comply with all applicable NATO security requirements and national security regulations when using, modifying, or distributing the Software.
+
+**11.2 Classification Handling**
+Any classified or sensitive information must be handled in accordance with NATO security protocols and national regulations.
+
+---
+
+## 12. TERMINATION
+
+**12.1 Termination Conditions**
+This License terminates automatically if You fail to comply with its terms and conditions.
+
+**12.2 Effect of Termination**
+Upon termination, You must cease all use, modification, and distribution of the Software and destroy all copies in Your possession.
+
+---
+
+## 13. AMENDMENTS
+
+This License may only be amended by written agreement signed by authorized representatives of NAEW&C Force.
+
+---
+
+## 14. CONTACT INFORMATION
+
+**NAEW&C Force Software Licensing Office**
+Mission Systems Engineering Center (MSEC)
+NATO AWACS Programme Office
+Geilenkirchen Air Base
+52511 Geilenkirchen
+Germany
+
+**For License Questions:**
+Email: ilkermurat.karakas@naew.nato.int
+Phone: [To be designated]
+
+---
+
+**License Version:** 1.0  
+**Effective Date:** August 15, 2025  
+**Last Updated:** July 31, 2025
+
+---
+
+*This license is designed for software developed by or for the NATO Airborne Early Warning and Control Force. For questions regarding this license or to report modifications, please contact the Mission Systems Engineering Center at the above address.*
