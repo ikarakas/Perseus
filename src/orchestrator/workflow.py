@@ -15,6 +15,7 @@ from ..sbom.generator import SBOMGenerator
 from ..common.storage import ResultStorage
 from ..api.models import AnalysisRequest, SBOMRequest, AnalysisResult
 from ..monitoring.metrics import MetricsCollector
+from ..vulnerability.scanner import VulnerabilityScanner
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,7 @@ class WorkflowEngine:
         self.storage = ResultStorage()
         self.active_analyses: Dict[str, Dict[str, Any]] = {}
         self.metrics_collector = metrics_collector
+        self.vulnerability_scanner = VulnerabilityScanner()
         
     async def analyze_source(self, analysis_id: str, request: AnalysisRequest) -> None:
         """Analyze source code"""
@@ -55,6 +57,10 @@ class WorkflowEngine:
             
             # Set the analysis ID in the results
             results.analysis_id = analysis_id
+            
+            # Run vulnerability scanning if enabled
+            if request.options and request.options.include_vulnerabilities:
+                await self._add_vulnerability_data(results)
             
             # Store results
             self.storage.store_analysis_result(analysis_id, results)
@@ -322,6 +328,53 @@ class WorkflowEngine:
     def get_sbom(self, sbom_id: str) -> Optional[Dict[str, Any]]:
         """Get generated SBOM"""
         return self.storage.get_sbom(sbom_id)
+    
+    async def _add_vulnerability_data(self, analysis_result: AnalysisResult) -> None:
+        """Add vulnerability data to analysis results"""
+        try:
+            logger.info(f"Starting vulnerability scan for {len(analysis_result.components)} components")
+            
+            # Scan for vulnerabilities
+            vuln_data = await self.vulnerability_scanner.scan_analysis_result(analysis_result)
+            
+            # Add vulnerability summary to analysis result
+            analysis_result.vulnerability_summary = vuln_data['summary']
+            
+            # Update component vulnerability counts
+            for component in analysis_result.components:
+                comp_vuln = next(
+                    (cv for cv in vuln_data['scan_results'] if cv.component_name == component.name),
+                    None
+                )
+                if comp_vuln:
+                    component.vulnerability_count = len(comp_vuln.vulnerabilities)
+                    component.critical_vulnerabilities = sum(
+                        1 for v in comp_vuln.vulnerabilities if v.severity == "critical"
+                    )
+                else:
+                    component.vulnerability_count = 0
+                    component.critical_vulnerabilities = 0
+            
+            # Update analysis metadata
+            analysis_result.metadata.update({
+                'vulnerability_scan_performed': True,
+                'vulnerability_scan_date': datetime.utcnow().isoformat(),
+                'total_vulnerabilities': vuln_data['summary']['total_vulnerabilities'],
+                'vulnerable_components': vuln_data['summary']['vulnerable_components']
+            })
+            
+            logger.info(f"Vulnerability scan completed: {vuln_data['summary']['total_vulnerabilities']} vulnerabilities found")
+            
+        except Exception as e:
+            logger.error(f"Vulnerability scanning failed: {e}")
+            analysis_result.vulnerability_summary = {
+                'error': str(e),
+                'scan_failed': True
+            }
+            analysis_result.metadata.update({
+                'vulnerability_scan_performed': False,
+                'vulnerability_scan_error': str(e)
+            })
     
     def validate_sbom(self, sbom_data: Dict[str, Any]) -> Dict[str, Any]:
         """Validate SBOM format"""

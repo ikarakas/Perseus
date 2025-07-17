@@ -199,6 +199,16 @@ class MonitoringDashboard:
                                 </select>
                             </div>
                             
+                            <div class="form-group">
+                                <label>
+                                    <input type="checkbox" id="includeVulnerabilities" checked style="width: auto; margin-right: 10px;">
+                                    Include vulnerability data
+                                </label>
+                                <small style="display: block; color: #7f8c8d; margin-top: 5px;">
+                                    Include security vulnerability information in the SBOM
+                                </small>
+                            </div>
+                            
                             <button class="btn" onclick="generateSBOM()">📄 Generate SBOM</button>
                             
                             <div id="sbomResults" class="results"></div>
@@ -372,6 +382,7 @@ class MonitoringDashboard:
                                     <h4>✅ Analysis Started</h4>
                                     <p><strong>Analysis ID:</strong> ${{result.analysis_id}}</p>
                                     <p><strong>Status:</strong> ${{result.status}}</p>
+                                    <p><em>🔒 Vulnerability scanning enabled by default</em></p>
                                     <button class="btn" onclick="checkStatus('${{result.analysis_id}}')">Check Status</button>
                                 `;
                                 resultsDiv.style.display = 'block';
@@ -400,6 +411,30 @@ class MonitoringDashboard:
                                 <p><strong>Components Found:</strong> ${{results.components ? results.components.length : 0}}</p>
                                 <p><strong>Analysis ID:</strong> ${{analysisId}}</p>
                             `;
+                            
+                            // Add vulnerability information if available
+                            if (results.metadata && results.metadata.vulnerability_scan_performed) {{
+                                const totalVulns = results.metadata.total_vulnerabilities || 0;
+                                const vulnComponents = results.metadata.vulnerable_components || 0;
+                                const scanDate = results.metadata.vulnerability_scan_date;
+                                
+                                resultsHtml += `
+                                    <div style="background: #f8f9fa; padding: 10px; border-radius: 4px; margin: 10px 0; border-left: 4px solid #3498db;">
+                                        <h5>🔒 Vulnerability Scan Results</h5>
+                                        <p><strong>Total Vulnerabilities:</strong> ${{totalVulns}}</p>
+                                        <p><strong>Vulnerable Components:</strong> ${{vulnComponents}}</p>
+                                        <p><strong>Scan Date:</strong> ${{scanDate ? new Date(scanDate).toLocaleString() : 'Unknown'}}</p>
+                                    </div>
+                                `;
+                            }} else if (results.metadata && results.metadata.vulnerability_scan_performed === false) {{
+                                resultsHtml += `
+                                    <div style="background: #fff3cd; padding: 10px; border-radius: 4px; margin: 10px 0; border-left: 4px solid #ffc107;">
+                                        <h5>⚠️ Vulnerability Scan</h5>
+                                        <p>Vulnerability scan failed or was disabled for this analysis.</p>
+                                    </div>
+                                `;
+                            }}
+                            
                             
                             // Add OS-specific information if available
                             if (results.metadata && results.metadata.distribution) {{
@@ -434,6 +469,7 @@ class MonitoringDashboard:
                     async function generateSBOM() {{
                         const analysisIds = document.getElementById('analysisIds').value.split(',').map(s => s.trim());
                         const format = document.getElementById('sbomFormat').value;
+                        const includeVulnerabilities = document.getElementById('includeVulnerabilities').checked;
                         
                         try {{
                             const response = await fetch('/sbom/generate', {{
@@ -443,7 +479,7 @@ class MonitoringDashboard:
                                     analysis_ids: analysisIds,
                                     format: format,
                                     include_licenses: true,
-                                    include_vulnerabilities: false
+                                    include_vulnerabilities: includeVulnerabilities
                                 }})
                             }});
                             

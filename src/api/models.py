@@ -28,6 +28,7 @@ class AnalysisOptions(BaseModel):
     timeout_minutes: int = Field(default=30, description="Analysis timeout in minutes")
     docker_auth: Optional[Dict[str, str]] = Field(default=None, description="Docker registry authentication")
     analyze_imports: bool = Field(default=False, description="Analyze import statements in source code (Java only)")
+    include_vulnerabilities: bool = Field(default=True, description="Include vulnerability scanning")
 
 class AnalysisRequest(BaseModel):
     type: AnalysisType = Field(description="Type of analysis to perform")
@@ -56,6 +57,8 @@ class Component(BaseModel):
     hashes: Optional[Dict[str, str]] = Field(default=None, description="File hashes")
     source_location: Optional[str] = Field(default=None, description="Source location")
     metadata: Optional[Dict[str, Any]] = Field(default=None, description="Additional component metadata")
+    vulnerability_count: Optional[int] = Field(default=None, description="Number of vulnerabilities found")
+    critical_vulnerabilities: Optional[int] = Field(default=None, description="Number of critical vulnerabilities")
 
 class AnalysisResult(BaseModel):
     analysis_id: str = Field(description="Analysis identifier")
@@ -63,3 +66,4 @@ class AnalysisResult(BaseModel):
     components: List[Component] = Field(description="Identified components")
     errors: List[str] = Field(default_factory=list, description="Analysis errors")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
+    vulnerability_summary: Optional[Dict[str, Any]] = Field(default=None, description="Vulnerability scan summary")

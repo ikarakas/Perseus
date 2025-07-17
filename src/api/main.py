@@ -262,3 +262,147 @@ async def validate_sbom(sbom_data: Dict[str, Any]):
     except Exception as e:
         logger.error(f"Error validating SBOM: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/vulnerabilities/scan/{analysis_id}")
+async def get_vulnerability_scan(analysis_id: str):
+    """Get vulnerability scan results for an analysis"""
+    try:
+        results = workflow_engine.get_analysis_results(analysis_id)
+        if not results:
+            raise HTTPException(status_code=404, detail="Analysis not found")
+        
+        # Extract vulnerability summary from metadata
+        vulnerability_summary = results.vulnerability_summary or {}
+        
+        # Get detailed vulnerability data for components
+        vulnerability_details = []
+        for component in results.components:
+            if component.vulnerability_count and component.vulnerability_count > 0:
+                vulnerability_details.append({
+                    "component_name": component.name,
+                    "component_version": component.version,
+                    "purl": component.purl,
+                    "vulnerability_count": component.vulnerability_count,
+                    "critical_vulnerabilities": component.critical_vulnerabilities or 0
+                })
+        
+        return {
+            "analysis_id": analysis_id,
+            "summary": vulnerability_summary,
+            "vulnerable_components": vulnerability_details,
+            "scan_metadata": {
+                "scan_performed": results.metadata.get("vulnerability_scan_performed", False),
+                "scan_date": results.metadata.get("vulnerability_scan_date"),
+                "total_components": len(results.components)
+            }
+        }
+    except Exception as e:
+        logger.error(f"Error getting vulnerability scan: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/vulnerabilities/scan/component")
+async def scan_single_component(component_data: Dict[str, Any]):
+    """Scan a single component for vulnerabilities"""
+    try:
+        from ..api.models import Component
+        from ..vulnerability.scanner import VulnerabilityScanner
+        
+        # Create component object
+        component = Component(
+            name=component_data.get("name"),
+            version=component_data.get("version"),
+            purl=component_data.get("purl"),
+            type=component_data.get("type", "library")
+        )
+        
+        # Scan for vulnerabilities
+        scanner = VulnerabilityScanner()
+        vulnerability_result = await scanner.scan_single_component(component)
+        
+        return {
+            "component": {
+                "name": component.name,
+                "version": component.version,
+                "purl": component.purl
+            },
+            "vulnerabilities": [
+                {
+                    "id": vuln.id,
+                    "title": vuln.title,
+                    "description": vuln.description,
+                    "severity": vuln.severity,
+                    "cvss_score": vuln.cvss.base_score if vuln.cvss else None,
+                    "published": vuln.published.isoformat() if vuln.published else None,
+                    "references": vuln.references,
+                    "cwe_ids": vuln.cwe_ids,
+                    "affected_versions": vuln.affected_versions,
+                    "fixed_versions": vuln.fixed_versions
+                }
+                for vuln in vulnerability_result.vulnerabilities
+            ],
+            "scan_metadata": {
+                "scan_date": datetime.utcnow().isoformat(),
+                "scanner": "OSV",
+                "vulnerability_count": len(vulnerability_result.vulnerabilities)
+            }
+        }
+    except Exception as e:
+        logger.error(f"Error scanning component: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/vulnerabilities/summary")
+async def get_vulnerability_summary():
+    """Get overall vulnerability summary across all analyses"""
+    try:
+        # This is a placeholder - in a real implementation, you'd aggregate across all analyses
+        return {
+            "total_analyses_with_vulnerabilities": 0,
+            "total_vulnerabilities_found": 0,
+            "severity_breakdown": {
+                "critical": 0,
+                "high": 0,
+                "medium": 0,
+                "low": 0
+            },
+            "most_vulnerable_components": [],
+            "scan_statistics": {
+                "total_scans_performed": 0,
+                "successful_scans": 0,
+                "failed_scans": 0
+            }
+        }
+    except Exception as e:
+        logger.error(f"Error getting vulnerability summary: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/vulnerabilities/database/update")
+async def update_vulnerability_database():
+    """Update the local vulnerability database"""
+    try:
+        from ..vulnerability.grype_scanner import GrypeScanner
+        
+        scanner = GrypeScanner()
+        result = scanner._update_database()
+        
+        return {
+            "status": "success",
+            "message": "Vulnerability database update initiated",
+            "details": result
+        }
+    except Exception as e:
+        logger.error(f"Error updating vulnerability database: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/vulnerabilities/database/status")
+async def get_vulnerability_database_status():
+    """Get vulnerability database status"""
+    try:
+        from ..vulnerability.grype_scanner import GrypeScanner
+        
+        scanner = GrypeScanner()
+        status = scanner.get_status()
+        
+        return status
+    except Exception as e:
+        logger.error(f"Error getting vulnerability database status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

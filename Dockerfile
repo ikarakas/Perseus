@@ -14,6 +14,9 @@ RUN apt-get update && apt-get install -y \
 # Install Syft for Docker image analysis
 RUN curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
 
+# Install Grype for vulnerability scanning
+RUN curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
+
 # Install Docker CLI for Docker daemon communication
 RUN curl -fsSL https://download.docker.com/linux/static/stable/x86_64/docker-24.0.7.tgz | tar -xzC /usr/local/bin --strip=1 docker/docker
 
