@@ -13,6 +13,7 @@ import markdown
 
 from .metrics import MetricsCollector, AlertManager
 from ..telemetry.storage import TelemetryStorage
+from ..common.version import version_config
 
 class MonitoringDashboard:
     """Web dashboard for platform monitoring"""
@@ -33,7 +34,18 @@ class MonitoringDashboard:
             alerts = self.alert_manager.get_active_alerts()
             
             # Return enhanced HTML dashboard
-            return HTMLResponse(f"""
+            classification_color = version_config.get_classification_color()
+            classification_display = version_config.should_display_classification()
+            classification_level = version_config.get_classification_level()
+            version_string = version_config.get_version_string()
+            build_info = version_config.get_build_info()
+            
+            classification_banner = ''
+            if classification_display:
+                classification_banner = f'<!-- Classification Banner --><div class="classification-banner">{classification_level}</div>'
+            
+            # Build the HTML response with proper string interpolation
+            html_response = f"""
             <!DOCTYPE html>
             <html>
             <head>
@@ -80,6 +92,24 @@ class MonitoringDashboard:
                         position: relative;
                         z-index: 1;
                     }}
+                    .classification-banner {{
+                        position: fixed;
+                        top: 0;
+                        left: 0;
+                        right: 0;
+                        background: {classification_color};
+                        color: #000;
+                        font-weight: bold;
+                        text-align: center;
+                        padding: 3px 0;
+                        font-size: 12px;
+                        z-index: 1001;
+                        border-bottom: 1px solid #000;
+                        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                    }}
+                    body {{
+                        padding-top: 25px;
+                    }}
                     .container {{ max-width: 1200px; margin: 0 auto; position: relative; z-index: 2; }}
                     .grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 20px 0; }}
                     .card {{ 
@@ -108,12 +138,17 @@ class MonitoringDashboard:
                 </style>
             </head>
             <body>
+                {classification_banner}
+                
                 <div class="header">
                     <div class="container">
                         <h1>🛡️ SBOM Platform Dashboard</h1>
                         <p>Bill of Materials Generation & Analysis</p>
                         <div style="font-size: 12px; opacity: 0.8; margin-top: 10px;">
-                            BOM Generation - by I. KARAKAS
+                            BOM Generation - by I. KARAKAS | Version: {version_string}
+                        </div>
+                        <div style="font-size: 11px; opacity: 0.6; margin-top: 5px;">
+                            Build: {build_info['timestamp'][:10]} | Environment: {build_info['environment']}
                         </div>
                     </div>
                 </div>
@@ -758,7 +793,9 @@ class MonitoringDashboard:
                 </script>
             </body>
             </html>
-            """)
+            """
+            
+            return HTMLResponse(html_response)
         
         @app.get("/api/metrics")
         async def get_metrics():
@@ -794,6 +831,20 @@ class MonitoringDashboard:
             """Clear an active alert"""
             self.alert_manager.clear_alert(alert_id)
             return JSONResponse({"status": "cleared"})
+        
+        @app.get("/api/version")
+        async def get_version():
+            """Get version information"""
+            return JSONResponse({
+                "version": version_config.get_version_string(),
+                "version_parts": version_config.get_version_parts(),
+                "classification": {
+                    "level": version_config.get_classification_level(),
+                    "display": version_config.should_display_classification(),
+                    "color": version_config.get_classification_color()
+                },
+                "build": version_config.get_build_info()
+            })
         
         @app.get("/health")
         async def health_check():

@@ -1,0 +1,19 @@
+services:
+  sbom-platform:
+    build: .
+    ports:
+      - "8080:8000"    # Main API (mapped to 8080 as shown in README)
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - /var/run/docker.sock:/var/run/docker.sock  # Docker socket access
+    environment:
+      - PYTHONPATH=/app
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+# Simplified version without telemetry and extra volumes
