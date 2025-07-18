@@ -1,6 +1,9 @@
 #!/bin/bash
 # Create the telemetry agent package
 
+# Change to project root directory
+cd "$(dirname "$0")/../.." || exit 1
+
 echo "🔧 Creating telemetry agent package..."
 
 # Clean up any previous attempts
