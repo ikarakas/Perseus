@@ -345,27 +345,33 @@ curl -X POST http://localhost:8080/sbom/generate \
 
 ### Production Deployment
 
-1. **Environment Setup:**
+1. **Start Services (Simple Setup):**
    ```bash
-   # Set environment variables
-   export PERSEUS_DB_URL="postgresql://user:pass@host:5432/perseus"
-   export PERSEUS_REDIS_URL="redis://host:6379"
-   export PERSEUS_SECRET_KEY="your-secret-key"
-   ```
-
-2. **Database Setup:**
-   ```bash
-   # Initialize database
-   python -m src.common.storage init
-   ```
-
-3. **Start Services:**
-   ```bash
-   # Start with Docker Compose
-   docker-compose up -d
-   
-   # Or start individual services
+   # Start with Docker Compose (recommended)
    docker-compose -f docker-compose-simple.yml up -d
+   
+   # Or use full Docker Compose
+   docker-compose up -d
+   ```
+
+2. **Optional: Advanced Configuration**
+   
+   For enterprise deployments, you can configure additional services:
+   
+   ```bash
+   # Set optional environment variables for advanced features
+   export PERSEUS_DB_URL="postgresql://user:pass@host:5432/perseus"  # For persistent storage
+   export PERSEUS_REDIS_URL="redis://host:6379"                       # For caching
+   export PERSEUS_SECRET_KEY="your-secret-key"                        # For JWT auth
+   ```
+
+3. **Verify Installation:**
+   ```bash
+   # Check if the platform is running
+   curl http://localhost:8080/
+   
+   # Access the dashboard
+   open http://localhost:8080/dashboard
    ```
 
 ### Remote Agent Deployment
