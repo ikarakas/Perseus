@@ -1,0 +1,1 @@
+tools/sbom-cli.sh

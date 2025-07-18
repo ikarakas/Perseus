@@ -26,10 +26,10 @@ ifconfig | grep "inet " | grep -v 127.0.0.1
 ### 2. Package the Agent
 
 ```bash
-./package-agent.sh
+./scripts/agent/package-agent-final.sh
 ```
 
-This creates `telemetry-agent-deploy.tar.gz`.
+This creates `telemetry-agent-final.tar.gz`.
 
 ### 3. Deploy to Ubuntu VM
 
