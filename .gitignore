@@ -145,5 +145,8 @@ telemetry-agent-*.tar.gz
 debug-agent.tar.gz
 debug-agent/
 
+# Examples directory - keep local only
+examples/
+
 # Keep empty directories
 !.gitkeep
