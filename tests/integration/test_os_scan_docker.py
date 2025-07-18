@@ -9,11 +9,8 @@ import json
 import sys
 import os
 
-# Add the src directory to the Python path
-sys.path.insert(0, '/Users/ikarakas/Development/Python/SBOM/src')
-
-from analyzers.os_analyzer import OSAnalyzer
-from api.models import AnalysisOptions
+from src.analyzers.os_analyzer import OSAnalyzer
+from src.api.models import AnalysisOptions
 
 async def test_os_scan_in_docker():
     """Test OS scanning by running the analyzer inside a Linux container"""

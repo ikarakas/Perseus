@@ -9,12 +9,8 @@ import os
 from unittest.mock import Mock, patch, AsyncMock
 import subprocess
 
-# Add the src directory to Python path
-import sys
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
-
-from analyzers.syft_docker_analyzer import SyftDockerAnalyzer
-from api.models import AnalysisOptions, AnalysisResult, Component
+from src.analyzers.syft_docker_analyzer import SyftDockerAnalyzer
+from src.api.models import AnalysisOptions, AnalysisResult, Component
 
 
 class TestSyftDockerAnalyzer:

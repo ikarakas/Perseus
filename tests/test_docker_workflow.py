@@ -6,14 +6,9 @@ import pytest
 from unittest.mock import Mock, patch, AsyncMock
 from datetime import datetime
 
-# Add the src directory to Python path
-import sys
-import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
-
-from orchestrator.workflow import WorkflowEngine
-from api.models import AnalysisRequest, AnalysisOptions, AnalysisResult, Component
-from analyzers.factory import AnalyzerFactory
+from src.orchestrator.workflow import WorkflowEngine
+from src.api.models import AnalysisRequest, AnalysisOptions, AnalysisResult, Component
+from src.analyzers.factory import AnalyzerFactory
 
 
 class TestDockerWorkflow:

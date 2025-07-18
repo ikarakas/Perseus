@@ -7,14 +7,9 @@ import json
 from fastapi.testclient import TestClient
 from unittest.mock import Mock, patch, AsyncMock
 
-# Add the src directory to Python path
-import sys
-import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
-
-from api.main import app
-from api.models import AnalysisRequest, AnalysisOptions
-from orchestrator.workflow import WorkflowEngine
+from src.api.main import app
+from src.api.models import AnalysisRequest, AnalysisOptions
+from src.orchestrator.workflow import WorkflowEngine
 
 
 class TestDockerAPI:
