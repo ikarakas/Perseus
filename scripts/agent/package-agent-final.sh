@@ -155,14 +155,15 @@ EOF
 
 chmod +x telemetry-agent-final/debug.sh
 
-# Create the tarball
-tar -czf telemetry-agent-final.tar.gz telemetry-agent-final/
+# Create the tarball in the scripts/agent directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+tar -czf "$SCRIPT_DIR/telemetry-agent-final.tar.gz" telemetry-agent-final/
 
 # Cleanup
 rm -rf telemetry-agent-final/
 
 echo ""
-echo "🎉 FINAL FIXED package created: telemetry-agent-final.tar.gz"
+echo "🎉 FINAL FIXED package created: $SCRIPT_DIR/telemetry-agent-final.tar.gz"
 echo ""
 echo "✅ ALL FIXES INCLUDED:"
 echo "  🔧 Ctrl+C now works properly (force exit)"
@@ -173,9 +174,9 @@ echo "  🐳 Pre-configured for Docker (10.211.55.2)"
 echo "  📝 Complete setup and run scripts"
 echo ""
 echo "🚀 Deploy to VM:"
-echo "  1. scp telemetry-agent-final.tar.gz parallels@10.211.55.3:/tmp/"
+echo "  1. scp $SCRIPT_DIR/telemetry-agent-final.tar.gz parallels@10.211.55.3:~/Downloads/"
 echo "  2. ssh parallels@10.211.55.3"
-echo "  3. cd /tmp && tar -xzf telemetry-agent-final.tar.gz"
+echo "  3. cd ~/Downloads && tar -xzf telemetry-agent-final.tar.gz"
 echo "  4. cd telemetry-agent-final && ./setup.sh"
 echo "  5. ./run.sh"
 echo ""
