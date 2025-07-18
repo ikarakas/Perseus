@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Perseus Platform](https://img.shields.io/badge/Perseus-v1.3.0-blue?style=for-the-badge&logo=shield)
+![Perseus Platform](https://img.shields.io/badge/Perseus-v1.3.1-blue?style=for-the-badge&logo=shield)
 ![License](https://img.shields.io/badge/License-NFCL%20v1.0-green?style=for-the-badge)
 ![Python](https://img.shields.io/badge/Python-3.8+-blue?style=for-the-badge&logo=python)
 ![Docker](https://img.shields.io/badge/Docker-Ready-blue?style=for-the-badge&logo=docker)

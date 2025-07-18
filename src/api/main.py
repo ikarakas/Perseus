@@ -25,9 +25,9 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
-    title="SBOM Generation Platform",
-    description="Multi-language SBOM generation for C/C++ and Java applications",
-    version="1.0.0"
+    title="Perseus SBOM Platform",
+    description="Enterprise SBOM & Vulnerability Management Platform",
+    version="1.3.1"
 )
 
 # Add CORS middleware

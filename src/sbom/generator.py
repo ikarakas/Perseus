@@ -19,7 +19,7 @@ class SBOMGenerator:
     
     def __init__(self):
         self.tool_name = "SBOM Generation Platform"
-        self.tool_version = "1.0.0"
+        self.tool_version = "1.3.1"
     
     def _map_component_type(self, syft_type: str) -> str:
         """Map Syft component type to CycloneDX component type"""
@@ -208,7 +208,7 @@ class SBOMGenerator:
             "SoftwareIdentity": {
                 "@name": f"SBOM-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}",
                 "@tagId": str(uuid.uuid4()),
-                "@version": "1.0",
+                "@version": "1.3.1",
                 "@xmlns": "http://standards.iso.org/iso/19770/-2/2015/schema.xsd",
                 "Entity": {
                     "@name": self.tool_name,
