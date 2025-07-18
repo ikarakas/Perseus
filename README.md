@@ -26,7 +26,7 @@
 - **🛡️ Vulnerability Scanning**: Integrated Grype and OSV scanning with offline capabilities
 - **📊 Real-time Monitoring**: Live dashboard with metrics and alerting
 - **🤖 Remote Agent Support**: Distributed analysis across multiple environments
-- **🔐 Enterprise Security**: Sandboxed execution, authentication, and audit logging
+- **🔐 Enterprise Security**: Input validation, rate limiting, and comprehensive audit logging
 
 ---
 
@@ -396,20 +396,32 @@ curl -X POST http://localhost:8080/sbom/generate \
 
 ## 🔒 Security Features
 
-### Authentication & Authorization
-- **JWT Tokens**: Secure API authentication
-- **Role-based Access**: Granular permission control
-- **API Rate Limiting**: Protection against abuse
+### Input Validation & Sanitization
+- **Path Traversal Protection**: Prevents `../` attacks and dangerous path patterns
+- **Request Size Limits**: 100MB maximum request size
+- **Input Sanitization**: Removes dangerous characters from component names and versions
+- **URL Validation**: Validates and sanitizes file://, http://, https://, and git:// URLs
 
-### Data Protection
-- **Encryption at Rest**: Sensitive data encryption
-- **TLS Communication**: Encrypted agent communication
-- **Audit Logging**: Complete operation tracking
+### Rate Limiting & Access Control
+- **Rate Limiting**: 60 requests per minute per IP address
+- **IP Blocking**: Manual IP blocking capability for security violations
+- **Request Monitoring**: Tracks and logs all API requests
 
-### Sandboxed Execution
-- **Container Isolation**: Secure analysis environments
-- **Resource Limits**: CPU and memory constraints
-- **Network Restrictions**: Controlled network access
+### Audit Logging
+- **Security Violations**: Logs all security violations with client IP
+- **Analysis Requests**: Tracks all analysis operations
+- **File Access**: Monitors file access operations
+- **SBOM Generation**: Logs SBOM generation activities
+
+### Docker Security
+- **Registry Authentication**: Supports Docker registry authentication for private images
+- **Credential Management**: Secure handling of Docker credentials
+- **Authentication Validation**: Validates Docker authentication before analysis
+
+### Telemetry Security (Planned)
+- **TLS Support**: SSL/TLS encryption for agent communication (configured but not fully implemented)
+- **Agent Authentication**: Basic authentication framework (placeholder implementation)
+- **Secure Communication**: Encrypted communication between agents and server (planned feature)
 
 ---
 
