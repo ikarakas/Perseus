@@ -1,4 +1,5 @@
 #!/bin/bash
+# © NATO Airborne Early Warning and Control Force - Licensed under NFCL v1.0
 # Debug the agent issues
 
 echo "🔍 Creating debug version of agent..."

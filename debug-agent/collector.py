@@ -1,3 +1,4 @@
+# © NATO Airborne Early Warning and Control Force - Licensed under NFCL v1.0
 """OS BOM collector for telemetry agent."""
 import platform
 import uuid

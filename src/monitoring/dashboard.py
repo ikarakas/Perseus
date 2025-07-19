@@ -1,3 +1,4 @@
+# © NATO Airborne Early Warning and Control Force - Licensed under NFCL v1.0
 """
 Web dashboard for monitoring SBOM platform metrics
 """

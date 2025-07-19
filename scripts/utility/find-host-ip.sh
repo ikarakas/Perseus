@@ -1,4 +1,5 @@
 #!/bin/bash
+# © NATO Airborne Early Warning and Control Force - Licensed under NFCL v1.0
 # Script to find the host IP address for VM connectivity
 
 echo "=== Finding Host IP for VM Connection ==="

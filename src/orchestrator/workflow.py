@@ -1,3 +1,4 @@
+# © NATO Airborne Early Warning and Control Force - Licensed under NFCL v1.0
 """
 Workflow engine for orchestrating SBOM analysis pipeline
 """

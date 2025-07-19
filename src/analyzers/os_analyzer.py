@@ -1,3 +1,4 @@
+# © NATO Airborne Early Warning and Control Force - Licensed under NFCL v1.0
 """
 OS-level Bill of Materials analyzer for Linux systems
 """

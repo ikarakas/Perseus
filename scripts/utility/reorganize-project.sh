@@ -1,4 +1,5 @@
 #!/bin/bash
+# © NATO Airborne Early Warning and Control Force - Licensed under NFCL v1.0
 # Script to reorganize project structure cleanly
 
 echo "🗂️  Reorganizing SBOM project structure..."

@@ -1,3 +1,4 @@
+# © NATO Airborne Early Warning and Control Force - Licensed under NFCL v1.0
 """Telemetry module for SBOM collection from remote agents."""
 
 from .protocol import TelemetryMessage, MessageType, ProtocolHandler

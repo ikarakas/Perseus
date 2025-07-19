@@ -1,3 +1,4 @@
+# © NATO Airborne Early Warning and Control Force - Licensed under NFCL v1.0
 """
 SBOM generator supporting multiple formats (SPDX, CycloneDX, SWID)
 """

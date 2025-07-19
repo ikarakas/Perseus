@@ -1,4 +1,5 @@
 #!/bin/bash
+# © NATO Airborne Early Warning and Control Force - Licensed under NFCL v1.0
 # Deploy telemetry agent to multiple remote machines
 
 echo "🚀 Multi-Agent Deployment Script"

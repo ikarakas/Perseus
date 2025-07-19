@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# © NATO Airborne Early Warning and Control Force - Licensed under NFCL v1.0
 """
 Simple integration test for Docker SBOM functionality
 This script tests the Docker image analysis end-to-end without pytest

@@ -1,4 +1,5 @@
 #!/bin/bash
+# © NATO Airborne Early Warning and Control Force - Licensed under NFCL v1.0
 # Test script for telemetry system
 
 echo "=== SBOM Telemetry System Test ==="

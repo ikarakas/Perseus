@@ -1,3 +1,4 @@
+# © NATO Airborne Early Warning and Control Force - Licensed under NFCL v1.0
 """Transport layer for telemetry agent."""
 import asyncio
 import logging

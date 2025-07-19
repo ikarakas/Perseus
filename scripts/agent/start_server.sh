@@ -1,4 +1,5 @@
 #!/bin/bash
+# © NATO Airborne Early Warning and Control Force - Licensed under NFCL v1.0
 
 # Helper script to start Python HTTP file server in background
 # Serves files from the current directory on port 17277

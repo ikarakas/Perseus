@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# © NATO Airborne Early Warning and Control Force - Licensed under NFCL v1.0
 """
 SBOM Formatter - Converts SBOM JSON to human-readable format
 """

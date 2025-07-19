@@ -1,3 +1,4 @@
+# © NATO Airborne Early Warning and Control Force - Licensed under NFCL v1.0
 """REST API for telemetry data access."""
 from fastapi import APIRouter, HTTPException, Query
 from typing import Dict, Any, List, Optional

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# © NATO Airborne Early Warning and Control Force - Licensed under NFCL v1.0
 """
 SBOM Orchestrator API Service
 Main entry point for the SBOM generation platform

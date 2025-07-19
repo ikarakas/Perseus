@@ -1,3 +1,4 @@
+# © NATO Airborne Early Warning and Control Force - Licensed under NFCL v1.0
 """Telemetry server for receiving BOM data from remote agents."""
 import asyncio
 import logging

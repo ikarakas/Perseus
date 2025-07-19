@@ -1,4 +1,5 @@
 #!/bin/bash
+# © NATO Airborne Early Warning and Control Force - Licensed under NFCL v1.0
 # Docker startup script for SBOM Platform
 
 echo "🚀 Starting SBOM Platform with Docker..."

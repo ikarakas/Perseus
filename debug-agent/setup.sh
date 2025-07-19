@@ -1,4 +1,5 @@
 #!/bin/bash
+# © NATO Airborne Early Warning and Control Force - Licensed under NFCL v1.0
 # Universal setup script for telemetry agent
 
 echo "🚀 Setting up SBOM telemetry agent..."

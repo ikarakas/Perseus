@@ -1,3 +1,4 @@
+# © NATO Airborne Early Warning and Control Force - Licensed under NFCL v1.0
 """Message handlers for telemetry server."""
 import logging
 from typing import Dict, Any, Optional
