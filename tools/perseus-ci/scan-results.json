@@ -1,5 +1,5 @@
 {
-  "analysis_id": "2fe3d193-9ca5-48e8-8eb1-d0035ec9a179",
+  "analysis_id": "134479c8-befb-4672-abcf-30fa39bac175",
   "status": "completed",
   "components": [
     {
@@ -330,7 +330,7 @@
     "analysis_type": "source",
     "deep_scan": true,
     "vulnerability_scan_performed": true,
-    "vulnerability_scan_date": "2025-07-20T13:06:30.451660",
+    "vulnerability_scan_date": "2025-07-20T13:37:29.532268",
     "total_vulnerabilities": 77,
     "vulnerable_components": 7
   },
@@ -390,6 +390,158 @@
       "purl": "pkg:maven/org.springframework/spring-web@4.3.17.RELEASE",
       "vulnerability_count": 7,
       "critical_vulnerabilities": 1
+    }
+  ],
+  "detailed_vulnerabilities": [
+    {
+      "component": "commons-collections",
+      "version": "3.2.1",
+      "cve_id": "GHSA-fjq5-5j5f-mvxh",
+      "severity": "Critical",
+      "description": "Critical vulnerability in commons-collections",
+      "cvss_score": 10.0,
+      "fixed_version": "3.2.2",
+      "related_cves": []
+    },
+    {
+      "component": "jackson-databind",
+      "version": "2.9.8",
+      "cve_id": "GHSA-p43x-xfjf-5jhr",
+      "severity": "Critical",
+      "description": "Critical vulnerability in jackson-databind",
+      "cvss_score": 10.0,
+      "fixed_version": "2.9.10.4",
+      "related_cves": []
+    },
+    {
+      "component": "jackson-databind",
+      "version": "2.9.8",
+      "cve_id": "GHSA-q93h-jc49-78gg",
+      "severity": "Critical",
+      "description": "Critical vulnerability in jackson-databind",
+      "cvss_score": 10.0,
+      "fixed_version": "2.9.10.4",
+      "related_cves": []
+    },
+    {
+      "component": "jackson-databind",
+      "version": "2.9.8",
+      "cve_id": "GHSA-4w82-r329-3q67",
+      "severity": "Critical",
+      "description": "Critical vulnerability in jackson-databind",
+      "cvss_score": 10.0,
+      "fixed_version": "2.9.10.3",
+      "related_cves": []
+    },
+    {
+      "component": "jackson-databind",
+      "version": "2.9.8",
+      "cve_id": "GHSA-h822-r4r5-v8jg",
+      "severity": "Critical",
+      "description": "Critical vulnerability in jackson-databind",
+      "cvss_score": 10.0,
+      "fixed_version": "2.9.10",
+      "related_cves": []
+    },
+    {
+      "component": "jackson-databind",
+      "version": "2.9.8",
+      "cve_id": "GHSA-5p34-5m6p-p58g",
+      "severity": "Critical",
+      "description": "Critical vulnerability in jackson-databind",
+      "cvss_score": 10.0,
+      "fixed_version": "2.9.10.4",
+      "related_cves": []
+    },
+    {
+      "component": "jackson-databind",
+      "version": "2.9.8",
+      "cve_id": "GHSA-gww7-p5w4-wrfv",
+      "severity": "Critical",
+      "description": "Critical vulnerability in jackson-databind",
+      "cvss_score": 10.0,
+      "fixed_version": "2.9.10.2",
+      "related_cves": []
+    },
+    {
+      "component": "jackson-databind",
+      "version": "2.9.8",
+      "cve_id": "GHSA-fmmc-742q-jg75",
+      "severity": "Critical",
+      "description": "Critical vulnerability in jackson-databind",
+      "cvss_score": 10.0,
+      "fixed_version": "2.9.10.1",
+      "related_cves": []
+    },
+    {
+      "component": "jackson-databind",
+      "version": "2.9.8",
+      "cve_id": "GHSA-6fpp-rgj9-8rwc",
+      "severity": "Critical",
+      "description": "Critical vulnerability in jackson-databind",
+      "cvss_score": 10.0,
+      "fixed_version": "2.9.9.2",
+      "related_cves": []
+    },
+    {
+      "component": "jackson-databind",
+      "version": "2.9.8",
+      "cve_id": "GHSA-f3j5-rmmp-3fc5",
+      "severity": "Critical",
+      "description": "Critical vulnerability in jackson-databind",
+      "cvss_score": 10.0,
+      "fixed_version": "2.9.10",
+      "related_cves": []
+    },
+    {
+      "component": "jackson-databind",
+      "version": "2.9.8",
+      "cve_id": "GHSA-gjmw-vf9h-g25v",
+      "severity": "Critical",
+      "description": "Critical vulnerability in jackson-databind",
+      "cvss_score": 10.0,
+      "fixed_version": "2.9.10.1",
+      "related_cves": []
+    },
+    {
+      "component": "jackson-databind",
+      "version": "2.9.8",
+      "cve_id": "GHSA-85cw-hj65-qqv9",
+      "severity": "Critical",
+      "description": "Critical vulnerability in jackson-databind",
+      "cvss_score": 10.0,
+      "fixed_version": "2.9.10",
+      "related_cves": []
+    },
+    {
+      "component": "jackson-databind",
+      "version": "2.9.8",
+      "cve_id": "GHSA-mx7p-6679-8g3q",
+      "severity": "Critical",
+      "description": "Critical vulnerability in jackson-databind",
+      "cvss_score": 10.0,
+      "fixed_version": "2.9.10.1",
+      "related_cves": []
+    },
+    {
+      "component": "log4j-core",
+      "version": "2.14.0",
+      "cve_id": "GHSA-jfh8-c2jp-5v3q",
+      "severity": "Critical",
+      "description": "Critical vulnerability in log4j-core",
+      "cvss_score": 10.0,
+      "fixed_version": "2.15.0",
+      "related_cves": []
+    },
+    {
+      "component": "log4j-core",
+      "version": "2.14.0",
+      "cve_id": "GHSA-7rjr-3q55-vv33",
+      "severity": "Critical",
+      "description": "Critical vulnerability in log4j-core",
+      "cvss_score": 10.0,
+      "fixed_version": "2.16.0",
+      "related_cves": []
     }
   ]
 }
