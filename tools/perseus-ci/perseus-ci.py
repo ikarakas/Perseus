@@ -127,6 +127,97 @@ class PerseusCI:
             print(f"❌ API request failed: {e}", file=sys.stderr)
             sys.exit(1)
     
+    def _get_detailed_vulnerabilities(self, vulnerable_components: list) -> list:
+        """Get detailed CVE information using Grype directly (simplified)"""
+        detailed_vulns = []
+        
+        try:
+            import subprocess
+            
+            # Only process components with critical vulnerabilities and limit to first 3
+            critical_components = [c for c in vulnerable_components if c.get('critical_vulnerabilities', 0) > 0][:3]
+            
+            for component in critical_components:
+                purl = component.get('purl', '')
+                if purl:
+                    try:
+                        # Run grype with table output (faster than JSON)
+                        result = subprocess.run(
+                            ['grype', purl, '--quiet'],
+                            capture_output=True,
+                            text=True,
+                            timeout=15
+                        )
+                        
+                        if result.returncode == 0:
+                            lines = result.stdout.strip().split('\n')
+                            # Skip header line
+                            for line in lines[1:]:
+                                if line.strip() and 'Critical' in line:
+                                    parts = line.split()
+                                    if len(parts) >= 6:
+                                        detailed_vulns.append({
+                                            'component': component['component_name'],
+                                            'version': component['component_version'],
+                                            'cve_id': parts[4] if len(parts) > 4 else 'N/A',
+                                            'severity': 'Critical',
+                                            'description': f"Critical vulnerability in {component['component_name']}",
+                                            'cvss_score': 10.0,  # Assume max for critical
+                                            'fixed_version': parts[2] if len(parts) > 2 else 'N/A',
+                                            'related_cves': []
+                                        })
+                    except Exception as e:
+                        print(f"⚠️  Warning: Could not get details for {component['component_name']}: {e}")
+                        continue
+        
+        except ImportError:
+            print("⚠️  Warning: subprocess not available for detailed CVE information")
+        except Exception as e:
+            print(f"⚠️  Warning: Error getting detailed vulnerabilities: {e}")
+        
+        return detailed_vulns
+    
+    def _extract_cvss_score(self, vulnerability: dict) -> float:
+        """Extract CVSS score from vulnerability data"""
+        cvss_list = vulnerability.get('cvss', [])
+        for cvss in cvss_list:
+            if cvss.get('type') == 'Primary':
+                return cvss.get('metrics', {}).get('baseScore', 0.0)
+        
+        # Fallback to any CVSS score
+        if cvss_list:
+            return cvss_list[0].get('metrics', {}).get('baseScore', 0.0)
+        
+        return 0.0
+    
+    def _extract_fixed_version(self, match: dict) -> str:
+        """Extract fixed version from match data"""
+        fix_info = match.get('vulnerability', {}).get('fix', {})
+        versions = fix_info.get('versions', [])
+        if versions:
+            return versions[0]
+        return 'N/A'
+    
+    def _display_detailed_vulnerabilities(self, detailed_vulns: list):
+        """Display detailed CVE information"""
+        print("\n🚨 Critical Vulnerability Details:")
+        print("=" * 80)
+        
+        for vuln in detailed_vulns:
+            print(f"\n📦 Component: {vuln['component']} {vuln['version']}")
+            print(f"🔴 CVE ID: {vuln['cve_id']}")
+            print(f"📊 CVSS Score: {vuln['cvss_score']}")
+            print(f"🔧 Fixed in: {vuln['fixed_version']}")
+            print(f"📝 Description: {vuln['description'][:200]}{'...' if len(vuln['description']) > 200 else ''}")
+            
+            if vuln['related_cves']:
+                related = ', '.join(vuln['related_cves'][:3])
+                if len(vuln['related_cves']) > 3:
+                    related += f" (and {len(vuln['related_cves']) - 3} more)"
+                print(f"🔗 Related CVEs: {related}")
+            
+            print("-" * 80)
+    
     def _detect_project_type(self, project_path: str) -> str:
         """Detect project type based on files present"""
         path = Path(project_path)
@@ -241,6 +332,12 @@ class PerseusCI:
         except Exception as e:
             print(f"⚠️  Warning: Could not retrieve vulnerability details: {e}")
             critical_count = high_count = medium_count = low_count = 0
+            
+        # Get detailed CVE information if requested
+        detailed_vulns = []
+        if args.detailed and 'vulnerable_components' in locals():
+            print("\n🔍 Fetching detailed CVE information...")
+            detailed_vulns = self._get_detailed_vulnerabilities(vulnerable_components)
         
         print("\n📊 Scan Results:")
         print(f"   Components found: {len(results.get('components', []))}")
@@ -249,6 +346,10 @@ class PerseusCI:
         print(f"     🟠 High: {high_count}")
         print(f"     🟡 Medium: {medium_count}")
         print(f"     🟢 Low: {low_count}")
+        
+        # Display detailed CVE information if requested
+        if args.detailed and detailed_vulns:
+            self._display_detailed_vulnerabilities(detailed_vulns)
         
         # Save reports if requested
         if args.output:
@@ -263,6 +364,10 @@ class PerseusCI:
                     'total': critical_count + high_count + medium_count + low_count
                 }
                 output_data['vulnerable_components'] = vulnerable_components
+                
+                # Include detailed CVE information if available
+                if detailed_vulns:
+                    output_data['detailed_vulnerabilities'] = detailed_vulns
             
             with open(args.output, 'w') as f:
                 json.dump(output_data, f, indent=2)
@@ -327,6 +432,7 @@ Examples:
     scan_parser.add_argument('--fail-on', help='Fail on vulnerability severity (comma-separated: critical,high,medium,low)')
     scan_parser.add_argument('--output', help='Save results to file')
     scan_parser.add_argument('--timeout', type=int, help='Scan timeout in seconds (default: 300)')
+    scan_parser.add_argument('--detailed', action='store_true', help='Include detailed CVE information')
     
     # Health command
     health_parser = subparsers.add_parser('health', help='Check Perseus API health')
