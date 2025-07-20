@@ -223,8 +223,18 @@ class SyftAnalyzer(BaseAnalyzer):
             # Handle Maven packages
             if purl_type == 'maven':
                 metadata = artifact.get('metadata', {})
-                group_id = metadata.get('groupId', metadata.get('group', ''))
-                artifact_id = metadata.get('artifactId', metadata.get('artifact', name))
+                
+                # Try multiple locations where Syft stores Maven group/artifact info
+                group_id = (metadata.get('groupId', '') or 
+                           metadata.get('group', '') or
+                           metadata.get('pomProperties', {}).get('groupId', '') or
+                           metadata.get('pomProject', {}).get('groupId', ''))
+                
+                artifact_id = (metadata.get('artifactId', '') or
+                              metadata.get('artifact', '') or
+                              metadata.get('pomProperties', {}).get('artifactId', '') or
+                              metadata.get('pomProject', {}).get('artifactId', '') or
+                              name)
                 
                 if group_id:
                     namespace = group_id

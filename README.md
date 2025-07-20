@@ -1,4 +1,5 @@
 # Perseus: Enterprise SBOM & Vulnerability Management Platform
+# © NATO Airborne Early Warning and Control Force - Licensed under NFCL v1.0
 
 <div align="center">
 
@@ -258,15 +259,106 @@ Perseus provides a powerful command-line interface for all operations:
 
 ### Vulnerability Scanning
 
+Perseus provides multiple methods for vulnerability scanning and SBOM-based security analysis:
+
+#### Method 1: Integrated Analysis (Recommended)
 ```bash
-# Scan for vulnerabilities
-./sbom-cli.sh scan-vulnerabilities <analysis-id>
+# Source code analysis with automatic vulnerability scanning
+./sbom-cli.sh analyze-source /path/to/project java --include-vulnerabilities
 
-# Get vulnerability report
-./sbom-cli.sh get-vulnerabilities <scan-id>
+# Docker image analysis with vulnerability scanning
+./sbom-cli.sh analyze-docker nginx:latest --include-vulnerabilities
 
-# Generate security report
-./sbom-cli.sh generate-security-report <analysis-id>
+# Check vulnerability summary
+curl http://localhost:8000/vulnerabilities/scan/<analysis-id>
+```
+
+#### Method 2: Perseus CI/CD Tool (CI/CD Integration)
+```bash
+# Navigate to your project directory
+cd /path/to/your/project
+
+# Run complete vulnerability scan
+python3 tools/perseus-ci/perseus-ci.py scan --output vulnerabilities.json
+
+# Scan with failure thresholds for CI/CD pipelines
+python3 tools/perseus-ci/perseus-ci.py scan --fail-on critical,high --output report.json
+
+# Check specific project path
+python3 tools/perseus-ci/perseus-ci.py scan --project-path ./my-app --output results.json
+```
+
+#### Method 3: API-Based Scanning
+```bash
+# Register CI/CD build for scanning
+curl -X POST http://localhost:8000/api/v1/cicd/builds \
+  -H "Content-Type: application/json" \
+  -d '{
+    "build_id": "build-123",
+    "project": {
+      "name": "my-app",
+      "path": "/app/data/my-project",
+      "type": "java"
+    },
+    "ci_context": {
+      "platform": "jenkins",
+      "build_id": "build-123"
+    }
+  }'
+
+# Start vulnerability scan
+curl -X POST http://localhost:8000/api/v1/cicd/builds/build-123/scan \
+  -H "Content-Type: application/json" \
+  -d '{"scan_type": "full", "wait": true}'
+
+# Get vulnerability results
+curl http://localhost:8000/api/v1/cicd/builds/build-123/results
+```
+
+#### Method 4: Direct SBOM Vulnerability Scanning
+```bash
+# Generate SBOM first
+./sbom-cli.sh generate-sbom <analysis-id> cyclonedx
+
+# Scan existing SBOM file with Grype
+grype /path/to/your/sbom.json -o table
+
+# Scan SBOM with detailed JSON output
+grype /path/to/your/sbom.json -o json > vulnerabilities.json
+
+# Scan SBOM with SARIF output for CI/CD
+grype /path/to/your/sbom.json -o sarif > vulnerabilities.sarif
+```
+
+#### Method 5: Component-Level Scanning
+```bash
+# Scan individual components
+curl -X POST http://localhost:8000/vulnerabilities/scan/component \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "log4j-core",
+    "version": "2.14.0",
+    "type": "java"
+  }'
+
+# Scan using Package URL (PURL)
+curl -X POST http://localhost:8000/vulnerabilities/scan/component \
+  -H "Content-Type: application/json" \
+  -d '{
+    "purl": "pkg:maven/org.apache.logging.log4j/log4j-core@2.14.0"
+  }'
+```
+
+#### Vulnerability Database Management
+```bash
+# Check vulnerability database status
+curl http://localhost:8000/vulnerabilities/database/status
+
+# Update vulnerability database
+curl -X POST http://localhost:8000/vulnerabilities/database/update
+
+# Get vulnerability summary for analysis
+curl http://localhost:8000/vulnerabilities/summary
 ```
 
 ### SBOM Generation

@@ -20,6 +20,7 @@ from ..monitoring.metrics import MetricsCollector
 from ..monitoring.dashboard import MonitoringDashboard
 from ..telemetry.api import router as telemetry_router, init_telemetry_api
 from ..telemetry.storage import TelemetryStorage
+from .cicd import router as cicd_router
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -57,6 +58,9 @@ init_telemetry_api(telemetry_storage, telemetry_server)
 
 # Include telemetry router
 app.include_router(telemetry_router)
+
+# Include CI/CD integration router
+app.include_router(cicd_router)
 
 # Startup event to start telemetry server
 @app.on_event("startup")

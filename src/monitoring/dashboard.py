@@ -283,19 +283,25 @@ class MonitoringDashboard:
                         </div>
                         <div class="code">
                             <strong>Analyze source code via curl:</strong><br>
-                            curl -X POST http://localhost:8080/analyze/source \\<br>
+                            curl -X POST http://localhost:8000/analyze/source \\<br>
                             &nbsp;&nbsp;-H "Content-Type: application/json" \\<br>
                             &nbsp;&nbsp;-d '{{"type":"source","language":"java","location":"/app/data/my-project"}}'
                         </div>
                         <div class="code">
                             <strong>Analyze Docker image via curl:</strong><br>
-                            curl -X POST http://localhost:8080/analyze/docker \\<br>
+                            curl -X POST http://localhost:8000/analyze/docker \\<br>
                             &nbsp;&nbsp;-H "Content-Type: application/json" \\<br>
                             &nbsp;&nbsp;-d '{{"type":"docker","location":"ubuntu:latest"}}'
                         </div>
                         <div class="code">
+                            <strong>CI/CD Integration (register build):</strong><br>
+                            curl -X POST http://localhost:8000/api/v1/cicd/builds \\<br>
+                            &nbsp;&nbsp;-H "Content-Type: application/json" \\<br>
+                            &nbsp;&nbsp;-d '{{"build_id":"build-123","project":{{"name":"my-project","path":"./data/my-project"}},"ci_context":{{"platform":"jenkins"}}}}'
+                        </div>
+                        <div class="code">
                             <strong>Analyze OS (Linux only) via curl:</strong><br>
-                            curl -X POST http://localhost:8080/analyze/os \\<br>
+                            curl -X POST http://localhost:8000/analyze/os \\<br>
                             &nbsp;&nbsp;-H "Content-Type: application/json" \\<br>
                             &nbsp;&nbsp;-d '{{"type":"os","location":"localhost"}}'
                         </div>
@@ -303,7 +309,8 @@ class MonitoringDashboard:
                         <ul>
                             <li><a href="/api/metrics" target="_blank">📈 Platform Metrics</a></li>
                             <li><a href="/health" target="_blank">❤️ Health Check</a></li>
-                            <li><a href="/docs/readme" target="_blank">📖 Full User Manual</a></li>
+                            <li><a href="/docs" target="_blank">📖 API Documentation</a></li>
+                            <li><a href="/api/v1/cicd/builds" target="_blank">🚀 CI/CD API</a></li>
                         </ul>
                     </div>
                     

@@ -1,0 +1,10 @@
+#!/bin/bash
+# © NATO Airborne Early Warning and Control Force - Licensed under NFCL v1.0
+
+# Perseus CI/CD CLI wrapper script
+
+# Get the directory where this script is located
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+# Execute the Python CLI with all arguments
+exec python3 "$SCRIPT_DIR/perseus-ci.py" "$@"
