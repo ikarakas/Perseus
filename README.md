@@ -28,6 +28,10 @@
 - **📊 Real-time Monitoring**: Live dashboard with metrics and alerting
 - **🤖 Remote Agent Support**: Distributed analysis across multiple environments
 - **🔐 Enterprise Security**: Input validation, rate limiting, and comprehensive audit logging
+- **🔄 Workflow Orchestration**: Advanced task management and parallel processing
+- **🧪 Debug Agent**: Dedicated debugging and analysis tools
+- **✅ SBOM Validation**: Format compliance checking for generated SBOMs
+- **🌐 WebSocket Communication**: Real-time telemetry data streaming
 
 ---
 
@@ -96,6 +100,8 @@ graph TB
 | **OSV Scanner** | Online vulnerability database queries | OSV API |
 | **Dashboard** | Real-time monitoring and metrics | Web UI |
 | **Telemetry Agent** | Remote data collection | Python |
+| **Workflow Engine** | Task orchestration and parallel processing | Python |
+| **Debug Agent** | Advanced debugging and analysis | Python |
 
 ---
 
@@ -160,17 +166,21 @@ graph TB
 - **SWID**: Software Identification tags
 
 **Analysis Capabilities:**
-- **Source Code**: C/C++, Java, Go, Python, Node.js
+- **Source Code**: C/C++, Java, Go, Python, Node.js with import analysis
 - **Binary Analysis**: Executables, JAR files, shared libraries
-- **Docker Images**: Complete container dependency mapping
+- **Docker Images**: Complete container dependency mapping with registry authentication
 - **OS Packages**: System-level package detection (APK, DEB, RPM)
+- **SBOM Validation**: Format compliance checking (SPDX, CycloneDX)
+- **Offline Analysis**: Air-gapped environment support
 
 ### Vulnerability Management
 
 **Integrated Scanners:**
 - **Grype**: Offline vulnerability scanning with local database
 - **OSV**: Online vulnerability database with real-time updates
+- **Offline Scanner**: Air-gapped environment vulnerability scanning
 - **Custom Rules**: Configurable vulnerability detection rules
+- **Component Scanner**: Individual component vulnerability checks via PURL
 
 **Security Features:**
 - **Severity Classification**: Critical, High, Medium, Low
@@ -191,6 +201,8 @@ graph TB
 - **Heartbeat Monitoring**: Real-time agent health tracking
 - **Configurable Collection**: Customizable data collection intervals
 - **Offline Operation**: Local analysis with periodic sync
+- **WebSocket Communication**: Real-time bidirectional data streaming
+- **Command Queue**: Remote command execution capability
 
 ### Real-time Monitoring
 
@@ -220,19 +232,30 @@ Perseus/
 │   ├── vulnerability/           # Vulnerability scanning
 │   │   ├── grype_scanner.py    # Grype integration
 │   │   ├── osv_scanner.py      # OSV API integration
+│   │   ├── offline_scanner.py  # Air-gapped scanning
 │   │   └── scanner.py          # Main scanner orchestrator
 │   ├── api/                    # REST API endpoints
+│   │   └── cicd.py            # CI/CD integration endpoints
+│   ├── orchestrator/           # Workflow engine
 │   ├── monitoring/             # Dashboard and metrics
 │   ├── telemetry/              # Remote agent protocol
 │   └── security/               # Authentication & middleware
 │
 ├── telemetry-agent/            # Remote agent implementation
+├── debug-agent/                # Debug and analysis tools
 ├── tools/                      # Command-line tools
-│   └── sbom-cli.sh            # Main CLI interface
+│   ├── sbom-cli.sh            # Main CLI interface
+│   └── perseus-ci/            # Standalone CI/CD integration
 ├── scripts/                    # Deployment and utility scripts
 ├── tests/                      # Comprehensive test suite
+│   ├── unit/                  # Unit tests
+│   ├── integration/           # Integration tests
+│   └── performance/           # Performance tests
+├── containers/                 # Container orchestration
 ├── data/                       # Analysis results (gitignored)
 ├── logs/                       # Application logs (gitignored)
+├── Dockerfile                  # Standard container image
+├── Dockerfile.minimal          # Lightweight container image
 └── docker-compose-simple.yml   # Production-ready setup
 ```
 
@@ -386,6 +409,82 @@ curl http://localhost:8000/vulnerabilities/summary
 ./sbom-cli.sh telemetry-data <agent-id>
 ```
 
+### CI/CD Integration
+
+Perseus provides comprehensive CI/CD platform integration with automatic platform detection and configurable security policies:
+
+#### Supported Platforms
+- **Jenkins**: Automatic job and build ID detection
+- **GitLab CI**: Pipeline and job integration
+- **GitHub Actions**: Workflow and run ID support
+- **Generic CI/CD**: Environment variable-based detection
+
+#### Perseus CI Tool
+The standalone `perseus-ci` tool provides zero-dependency CI/CD integration:
+
+```bash
+# Basic vulnerability scan
+python3 tools/perseus-ci/perseus-ci.py scan
+
+# Scan with failure thresholds
+python3 tools/perseus-ci/perseus-ci.py scan --fail-on critical,high
+
+# Generate HTML report
+python3 tools/perseus-ci/perseus-ci.py scan --output report.html --format html
+
+# Multiple output formats
+python3 tools/perseus-ci/perseus-ci.py scan --format json,csv,html
+```
+
+#### CI/CD API Integration
+```bash
+# Register build
+curl -X POST http://localhost:8000/api/v1/cicd/builds \
+  -H "Content-Type: application/json" \
+  -d '{"build_id": "build-123", "project": {"name": "my-app", "type": "java"}}'
+
+# Run synchronous scan (waits for completion)
+curl -X POST http://localhost:8000/api/v1/cicd/builds/build-123/scan?wait=true
+
+# Download artifacts
+curl http://localhost:8000/api/v1/cicd/builds/build-123/artifacts/sbom
+curl http://localhost:8000/api/v1/cicd/builds/build-123/artifacts/vulnerabilities
+```
+
+#### Pipeline Integration Examples
+
+**Jenkins Pipeline:**
+```groovy
+stage('Security Scan') {
+    steps {
+        sh 'python3 tools/perseus-ci/perseus-ci.py scan --fail-on critical'
+    }
+}
+```
+
+**GitLab CI:**
+```yaml
+security-scan:
+  script:
+    - python3 tools/perseus-ci/perseus-ci.py scan --output report.json
+  artifacts:
+    reports:
+      sast: report.json
+```
+
+**GitHub Actions:**
+```yaml
+- name: Perseus Security Scan
+  run: |
+    python3 tools/perseus-ci/perseus-ci.py scan --fail-on critical,high
+    
+- name: Upload Results
+  uses: actions/upload-artifact@v3
+  with:
+    name: security-report
+    path: vulnerabilities.json
+```
+
 ---
 
 ## 🔌 API Reference
@@ -398,7 +497,14 @@ curl http://localhost:8000/vulnerabilities/summary
 | `/analyze/docker` | POST | Analyze Docker images |
 | `/analyze/os` | POST | Analyze OS packages |
 | `/vulnerabilities/scan` | POST | Scan for vulnerabilities |
+| `/vulnerabilities/scan/component` | POST | Scan individual component |
+| `/vulnerabilities/database/status` | GET | Check vulnerability DB status |
+| `/vulnerabilities/database/update` | POST | Update vulnerability DB |
 | `/sbom/generate` | POST | Generate SBOM |
+| `/sbom/validate` | POST | Validate SBOM format |
+| `/api/v1/cicd/builds` | POST | Register CI/CD build |
+| `/api/v1/cicd/builds/{id}/scan` | POST | Start CI/CD scan |
+| `/api/v1/cicd/builds/{id}/results` | GET | Get CI/CD results |
 | `/telemetry/agents` | GET | List remote agents |
 | `/dashboard` | GET | Web dashboard |
 
@@ -510,10 +616,18 @@ curl -X POST http://localhost:8080/sbom/generate \
 - **Credential Management**: Secure handling of Docker credentials
 - **Authentication Validation**: Validates Docker authentication before analysis
 
-### Telemetry Security (Planned)
-- **TLS Support**: SSL/TLS encryption for agent communication (configured but not fully implemented)
-- **Agent Authentication**: Basic authentication framework (placeholder implementation)
-- **Secure Communication**: Encrypted communication between agents and server (planned feature)
+### Classification System
+- **Security Classification**: Configurable security classification levels (UNCLASSIFIED, OFFICIAL, SECRET)
+- **Classification Banner**: Visual classification display in dashboard
+- **Version Control**: Version tracking with classification metadata
+- **Export Controls**: Classification-aware data export restrictions
+
+### Telemetry Security
+- **WebSocket Security**: Secure WebSocket connections for real-time communication
+- **TLS Support**: SSL/TLS encryption for agent communication (partially implemented)
+- **Agent Authentication**: Basic authentication framework
+- **Secure Communication**: Encrypted communication between agents and server
+- **Command Authorization**: Secure remote command execution
 
 ---
 
@@ -574,8 +688,14 @@ pip install -r requirements-dev.txt
 # Run tests
 python -m pytest tests/
 
+# Run performance tests
+python -m pytest tests/performance/
+
 # Start development server
 python -m uvicorn src.api.main:app --reload
+
+# Run debug agent
+python debug-agent/debug_agent.py
 ```
 
 ---
