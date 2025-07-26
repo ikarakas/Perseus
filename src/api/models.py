@@ -60,6 +60,7 @@ class Component(BaseModel):
     metadata: Optional[Dict[str, Any]] = Field(default=None, description="Additional component metadata")
     vulnerability_count: Optional[int] = Field(default=None, description="Number of vulnerabilities found")
     critical_vulnerabilities: Optional[int] = Field(default=None, description="Number of critical vulnerabilities")
+    high_vulnerabilities: Optional[int] = Field(default=None, description="Number of high severity vulnerabilities")
 
 class AnalysisResult(BaseModel):
     analysis_id: str = Field(description="Analysis identifier")

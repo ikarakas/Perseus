@@ -1,4 +1,21 @@
 services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: perseus
+      POSTGRES_USER: perseus
+      POSTGRES_PASSWORD: perseus_secret
+    volumes:
+      - perseus_db_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U perseus -d perseus"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   sbom-platform:
     build: .
     ports:
@@ -9,6 +26,14 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock  # Docker socket access
     environment:
       - PYTHONPATH=/app
+      - PERSEUS_DB_HOST=postgres
+      - PERSEUS_DB_PORT=5432
+      - PERSEUS_DB_NAME=perseus
+      - PERSEUS_DB_USER=perseus
+      - PERSEUS_DB_PASSWORD=perseus_secret
+    depends_on:
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/"]
@@ -16,4 +41,5 @@ services:
       timeout: 10s
       retries: 3
 
-# Simplified version without telemetry and extra volumes
+volumes:
+  perseus_db_data:

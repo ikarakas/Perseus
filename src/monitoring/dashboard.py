@@ -151,6 +151,24 @@ class MonitoringDashboard:
                         <div style="font-size: 11px; opacity: 0.6; margin-top: 5px;">
                             Build: {build_info['timestamp'][:10]} | Environment: {build_info['environment']}
                         </div>
+                        
+                        <!-- Enhanced Portal Shortcut -->
+                        <div style="margin-top: 15px;">
+                            <a href="/dashboard/enhanced" 
+                               style="display: inline-block; 
+                                      background: linear-gradient(45deg, #4fd1c7, #3aa99f); 
+                                      color: white; 
+                                      padding: 12px 25px; 
+                                      text-decoration: none; 
+                                      border-radius: 25px; 
+                                      font-weight: bold; 
+                                      box-shadow: 0 4px 15px rgba(79, 209, 199, 0.3);
+                                      transition: transform 0.2s, box-shadow 0.2s;"
+                               onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(79, 209, 199, 0.4)'"
+                               onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 15px rgba(79, 209, 199, 0.3)'">
+                                🚀 Enhanced Portal - Database Analytics
+                            </a>
+                        </div>
                     </div>
                 </div>
                 
@@ -307,6 +325,8 @@ class MonitoringDashboard:
                         </div>
                         <p><strong>Useful Links:</strong></p>
                         <ul>
+                            <li><a href="/dashboard/enhanced" target="_blank" style="color: #4fd1c7; font-weight: bold;">🚀 Enhanced Portal - Database Analytics</a></li>
+                            <li><a href="/components/search" target="_blank">🔍 Component Search</a></li>
                             <li><a href="/api/metrics" target="_blank">📈 Platform Metrics</a></li>
                             <li><a href="/health" target="_blank">❤️ Health Check</a></li>
                             <li><a href="/docs" target="_blank">📖 API Documentation</a></li>
@@ -395,19 +415,30 @@ class MonitoringDashboard:
                         if (type === 'source') {{
                             payload.language = language;
                             payload.location = location;
-                            // Add options if analyze imports is checked
-                            if (analyzeImports) {{
-                                payload.options = {{
-                                    deep_scan: true,
-                                    analyze_imports: true
-                                }};
-                            }}
+                            // Always include options with vulnerability scanning enabled
+                            payload.options = {{
+                                deep_scan: true,
+                                analyze_imports: analyzeImports,
+                                include_vulnerabilities: true
+                            }};
                         }} else if (type === 'binary') {{
                             payload.location = location;
+                            // Include vulnerability scanning for binary analysis
+                            payload.options = {{
+                                include_vulnerabilities: true
+                            }};
                         }} else if (type === 'docker') {{
                             payload.location = dockerImage;
+                            // Include vulnerability scanning for docker analysis
+                            payload.options = {{
+                                include_vulnerabilities: true
+                            }};
                         }} else if (type === 'os') {{
                             payload.location = 'localhost';
+                            // Include vulnerability scanning for OS analysis
+                            payload.options = {{
+                                include_vulnerabilities: true
+                            }};
                         }}
                         
                         try {{

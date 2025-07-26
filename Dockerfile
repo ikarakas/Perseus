@@ -46,6 +46,17 @@ echo "Starting SBOM Platform..."
 # Set Python path to include the app directory
 export PYTHONPATH="/app:$PYTHONPATH"
 
+# Wait for database to be ready
+echo "Waiting for database connection..."
+while ! python -c "from src.database import test_connection; exit(0 if test_connection() else 1)" 2>/dev/null; do
+    echo "Database not ready, waiting..."
+    sleep 2
+done
+
+# Initialize database tables
+echo "Initializing database..."
+python scripts/init_database.py
+
 # Start main API server with integrated telemetry server
 echo "Starting integrated API and telemetry server..."
 python -m uvicorn src.api.main:app --host 0.0.0.0 --port 8000
