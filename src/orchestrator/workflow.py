@@ -121,6 +121,10 @@ class WorkflowEngine:
                 logger.error(f"Analysis {analysis_id} not found in database")
                 return
             
+            # Prepare component data for bulk upsert and deduplicate
+            components_data = []
+            seen_components = set()
+            
             for component_data in components:
                 component_dict = component_data.dict() if hasattr(component_data, 'dict') else component_data
                 
@@ -132,10 +136,19 @@ class WorkflowEngine:
                     except ValueError:
                         pass
                 
+                # Create a unique key for deduplication
+                name = component_dict.get('name', '')
+                version = component_dict.get('version', '')
+                unique_key = (name, version, component_type)
+                
+                # Skip if we've already seen this component
+                if unique_key in seen_components:
+                    continue
+                seen_components.add(unique_key)
+                
                 db_component_data = {
-                    'analysis_id': analysis.id,
-                    'name': component_dict.get('name', ''),
-                    'version': component_dict.get('version', ''),
+                    'name': name,
+                    'version': version,
                     'type': component_type,
                     'purl': component_dict.get('purl'),
                     'description': component_dict.get('description'),
@@ -145,8 +158,12 @@ class WorkflowEngine:
                     'component_metadata': component_dict.get('metadata', {}),
                     'syft_metadata': component_dict.get('syft_metadata', {})
                 }
-                
-                component_repo.create(**db_component_data)
+                components_data.append(db_component_data)
+            
+            logger.info(f"Storing {len(components_data)} unique components (deduplicated from {len(components)} total)")
+            
+            # Use bulk create or update to handle duplicates
+            component_repo.bulk_create_or_update(components_data, analysis.id)
                 
         except Exception as e:
             logger.error(f"Failed to store components in database: {e}")
@@ -880,7 +897,7 @@ class WorkflowEngine:
                                 'cvss_score': vuln.cvss.base_score if vuln.cvss else None,
                                 'cvss_vector': vuln.cvss.vector_string if vuln.cvss else None,
                                 'published_date': vuln.published,
-                                'modified_date': vuln.modified,
+                                'modified_date': vuln.updated,
                                 'references': vuln.references or [],
                                 'cwe_ids': vuln.cwe_ids or [],
                                 'affected_versions': vuln.affected_versions or [],

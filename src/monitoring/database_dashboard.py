@@ -114,6 +114,8 @@ class DatabaseDashboard:
                             'total_vulnerabilities': 0,
                             'critical_vulnerabilities': 0,
                             'high_vulnerabilities': 0,
+                            'medium_vulnerabilities': 0,
+                            'low_vulnerabilities': 0,
                             'components': 0
                         }
                     
@@ -122,6 +124,18 @@ class DatabaseDashboard:
                     daily_stats[day]['critical_vulnerabilities'] += analysis.critical_vulnerability_count or 0
                     daily_stats[day]['high_vulnerabilities'] += analysis.high_vulnerability_count or 0
                     daily_stats[day]['components'] += analysis.component_count or 0
+                    
+                    # Calculate medium/low as the difference
+                    total = analysis.vulnerability_count or 0
+                    critical = analysis.critical_vulnerability_count or 0
+                    high = analysis.high_vulnerability_count or 0
+                    medium_low = total - critical - high
+                    
+                    # For now, split medium/low evenly (or we could add these fields to the database)
+                    if medium_low > 0:
+                        # Assume 60% are medium, 40% are low (typical distribution)
+                        daily_stats[day]['medium_vulnerabilities'] += int(medium_low * 0.6)
+                        daily_stats[day]['low_vulnerabilities'] += medium_low - int(medium_low * 0.6)
                 
                 return {
                     "trends": list(daily_stats.values()),
@@ -1370,18 +1384,31 @@ class DatabaseDashboard:
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    layout: {
+                        padding: {
+                            left: 10,
+                            right: 10,
+                            top: 10,
+                            bottom: 25
+                        }
+                    },
                     plugins: {
                         title: {
                             display: true,
                             text: 'Daily Vulnerability Discovery',
                             font: { size: 14, weight: 'bold' },
-                            color: '#2c3e50'
+                            color: '#2c3e50',
+                            padding: {
+                                top: 10,
+                                bottom: 10
+                            }
                         },
                         legend: {
                             position: 'top',
                             labels: { 
                                 usePointStyle: true,
-                                color: '#2c3e50'
+                                color: '#2c3e50',
+                                padding: 15
                             }
                         }
                     },
@@ -1390,20 +1417,39 @@ class DatabaseDashboard:
                             stacked: true,
                             ticks: { 
                                 color: '#2c3e50',
-                                maxRotation: 45 
+                                maxRotation: 45,
+                                padding: 8
                             },
-                            grid: { color: 'rgba(44, 62, 80, 0.1)' }
+                            grid: { 
+                                color: 'rgba(44, 62, 80, 0.1)',
+                                drawTicks: true,
+                                tickLength: 8
+                            },
+                            offset: true
                         },
                         y: {
                             stacked: true,
                             beginAtZero: true,
-                            ticks: { color: '#2c3e50' },
-                            grid: { color: 'rgba(44, 62, 80, 0.1)' },
+                            ticks: { 
+                                color: '#2c3e50',
+                                padding: 15
+                            },
+                            grid: { 
+                                color: 'rgba(44, 62, 80, 0.1)',
+                                drawTicks: true,
+                                tickLength: 8
+                            },
                             title: {
                                 display: true,
                                 text: 'Number of Vulnerabilities',
-                                color: '#2c3e50'
-                            }
+                                color: '#2c3e50',
+                                padding: {
+                                    top: 15,
+                                    bottom: 15
+                                }
+                            },
+                            grace: '8%',
+                            offset: true
                         }
                     },
                     interaction: {

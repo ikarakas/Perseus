@@ -12,6 +12,7 @@ from typing import List, Dict, Any, Optional
 import yaml
 
 from ..api.models import AnalysisResult, SBOMFormat
+from ..common.version import version_config
 
 logger = logging.getLogger(__name__)
 
@@ -19,8 +20,9 @@ class SBOMGenerator:
     """Generator for creating SBOMs in multiple formats"""
     
     def __init__(self):
-        self.tool_name = "SBOM Generation Platform"
-        self.tool_version = "1.4.0"
+        self.tool_name = "Perseus"
+        self.tool_version = version_config.get_version_string()
+        self.author = "Ilker Karakas"
     
     def _map_component_type(self, syft_type: str) -> str:
         """Map Syft component type to CycloneDX component type"""
@@ -162,7 +164,10 @@ class SBOMGenerator:
             "documentNamespace": document_namespace,
             "creationInfo": {
                 "created": datetime.utcnow().isoformat() + "Z",
-                "creators": [f"Tool: {self.tool_name}-{self.tool_version}"]
+                "creators": [
+                    f"Tool: {self.tool_name}-{self.tool_version}",
+                    f"Person: {self.author}"
+                ]
             },
             "packages": packages
         }
@@ -182,7 +187,8 @@ class SBOMGenerator:
                 source_info.append(f"Analysis ID: {analysis_metadata['analysis_id']}")
             if analysis_metadata.get("source_metadata"):
                 for key, value in analysis_metadata["source_metadata"].items():
-                    source_info.append(f"{key}: {value}")
+                    if key != "workflow_version":  # Exclude workflow version
+                        source_info.append(f"{key}: {value}")
             
             if source_info:
                 spdx_doc["comment"] = "\n".join(source_info)
@@ -254,9 +260,10 @@ class SBOMGenerator:
             "metadata": {
                 "timestamp": datetime.utcnow().isoformat() + "Z",
                 "tools": [{
-                    "vendor": "SBOM Platform",
+                    "vendor": "NATO AWACS",
                     "name": self.tool_name,
-                    "version": self.tool_version
+                    "version": self.tool_version,
+                    "author": self.author
                 }]
             },
             "components": components
@@ -293,10 +300,11 @@ class SBOMGenerator:
             # Add source metadata as properties
             if analysis_metadata.get("source_metadata"):
                 for key, value in analysis_metadata["source_metadata"].items():
-                    properties.append({
-                        "name": f"sbom:source_{key}",
-                        "value": str(value)
-                    })
+                    if key != "workflow_version":  # Exclude workflow version
+                        properties.append({
+                            "name": f"sbom:source_{key}",
+                            "value": str(value)
+                        })
             
             if properties:
                 target_component["properties"] = properties
@@ -309,15 +317,27 @@ class SBOMGenerator:
                       include_licenses: bool,
                       analysis_metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Generate SWID tag format SBOM"""
+        # Generate unique name based on analysis target
+        sbom_name = f"SBOM-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}"
+        if analysis_metadata and analysis_metadata.get("location"):
+            # Extract filename or last part of path for better naming
+            target_name = analysis_metadata["location"].split('/')[-1]
+            sbom_name = f"SBOM-{target_name}-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}"
+        
         swid_tag = {
             "SoftwareIdentity": {
-                "@name": f"SBOM-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}",
+                "@name": sbom_name,
                 "@tagId": str(uuid.uuid4()),
                 "@version": "1.4.0",
                 "@xmlns": "http://standards.iso.org/iso/19770/-2/2015/schema.xsd",
+                "@versionScheme": "multipartnumeric",
+                "@corpus": "false",
+                "@patch": "false",
+                "@supplemental": "false",
                 "Entity": {
-                    "@name": self.tool_name,
-                    "@role": "tagCreator softwareCreator"
+                    "@name": f"{self.tool_name} ({self.author})",
+                    "@role": "tagCreator softwareCreator",
+                    "@thumbprint": f"generated-at-{datetime.utcnow().isoformat()}Z"
                 },
                 "Payload": {
                     "Resource": []
@@ -325,7 +345,7 @@ class SBOMGenerator:
             }
         }
         
-        # Add analysis metadata as additional Entity elements
+        # Add comprehensive analysis metadata as additional Entity elements
         if analysis_metadata:
             entities = [swid_tag["SoftwareIdentity"]["Entity"]]
             
@@ -340,6 +360,27 @@ class SBOMGenerator:
                     "@name": f"Analysis Type: {analysis_metadata['analysis_type']}",
                     "@role": "distributor"
                 })
+            
+            if analysis_metadata.get("analysis_id"):
+                entities.append({
+                    "@name": f"Analysis ID: {analysis_metadata['analysis_id']}",
+                    "@role": "licensor"
+                })
+            
+            # Add metadata as Meta elements for better structure
+            meta_elements = []
+            
+            # Add all source metadata
+            if analysis_metadata.get("source_metadata"):
+                for key, value in analysis_metadata["source_metadata"].items():
+                    if key != "workflow_version":  # Exclude workflow version
+                        meta_elements.append({
+                            "@key": f"sbom:{key}",
+                            "@value": str(value)
+                        })
+            
+            if meta_elements:
+                swid_tag["SoftwareIdentity"]["Meta"] = meta_elements
             
             swid_tag["SoftwareIdentity"]["Entity"] = entities
         
