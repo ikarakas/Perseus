@@ -590,14 +590,21 @@ async def delete_analysis(analysis_id: str, db: Session = Depends(get_db_session
 
 @app.get("/api/v1/components/search")
 async def search_components(
-    q: str,
+    q: str = "",
+    analysis_id: Optional[str] = None,
     limit: int = 50,
     db: Session = Depends(get_db_session)
 ):
-    """Search components by name or description"""
+    """Search components by name, description, or analysis ID"""
     try:
         component_repo = ComponentRepository(db)
-        components = component_repo.search_components(q, limit=limit)
+        
+        if analysis_id:
+            # Search by analysis ID (supports partial matching)
+            components = component_repo.search_by_analysis_id(analysis_id, q, limit=limit)
+        else:
+            # Regular text search
+            components = component_repo.search_components(q, limit=limit)
         
         return {
             "components": [
@@ -609,7 +616,7 @@ async def search_components(
                     "vulnerability_count": c.vulnerability_count,
                     "critical_vulnerabilities": c.critical_vulnerabilities,
                     "description": c.description,
-                    "analysis_id": str(c.analysis_id)
+                    "analysis_id": c.analysis.analysis_id if c.analysis else str(c.analysis_id)
                 }
                 for c in components
             ],
@@ -623,13 +630,14 @@ async def search_components(
 @app.get("/api/v1/components/vulnerable")
 async def get_vulnerable_components(
     min_severity: Optional[str] = None,
+    analysis_id: Optional[str] = None,
     limit: int = 50,
     db: Session = Depends(get_db_session)
 ):
     """Get components with vulnerabilities"""
     try:
         component_repo = ComponentRepository(db)
-        components = component_repo.get_vulnerable_components(min_severity)[:limit]
+        components = component_repo.get_vulnerable_components(min_severity, analysis_id)[:limit]
         
         return {
             "vulnerable_components": [
@@ -641,7 +649,7 @@ async def get_vulnerable_components(
                     "vulnerability_count": c.vulnerability_count,
                     "critical_vulnerabilities": c.critical_vulnerabilities,
                     "high_vulnerabilities": c.high_vulnerabilities,
-                    "analysis_id": str(c.analysis_id)
+                    "analysis_id": c.analysis.analysis_id if c.analysis else str(c.analysis_id)
                 }
                 for c in components
             ],

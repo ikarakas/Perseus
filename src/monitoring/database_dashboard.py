@@ -876,7 +876,8 @@ class DatabaseDashboard:
         
         <!-- Vulnerability Summary -->
         <div class="metric-card">
-            <h3>🚨 Vulnerability Summary</h3>
+            <h3>🚨 Platform-wide Vulnerability Summary</h3>
+            <div style="font-size: 12px; color: #666; margin-bottom: 10px;">Total across all analyses</div>
             <div class="vulnerability-severity">
                 <div class="severity-item critical">
                     <div class="metric-value" id="critical-vulns">-</div>

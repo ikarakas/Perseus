@@ -78,21 +78,21 @@ class WorkflowEngine:
             analysis = analysis_repo.get_by_analysis_id(analysis_id)
             
             if analysis:
-                # Calculate vulnerability counts from components
+                # Calculate vulnerability counts from deduplicated components in database
+                component_repo = ComponentRepository(db)
+                stored_components = component_repo.session.query(component_repo.model).filter(
+                    component_repo.model.analysis_id == analysis.id
+                ).all()
+                
                 total_vulnerabilities = 0
                 critical_vulnerabilities = 0
                 high_vulnerabilities = 0
                 
-                if analysis_result.components:
-                    for component in analysis_result.components:
-                        component_dict = component.dict() if hasattr(component, 'dict') else component
-                        vuln_count = component_dict.get('vulnerability_count', 0)
-                        critical_count = component_dict.get('critical_vulnerabilities', 0)
-                        high_count = component_dict.get('high_vulnerabilities', 0)
-                        
-                        total_vulnerabilities += vuln_count
-                        critical_vulnerabilities += critical_count
-                        high_vulnerabilities += high_count
+                # Use the actual stored components for consistent counting
+                for component in stored_components:
+                    total_vulnerabilities += component.vulnerability_count or 0
+                    critical_vulnerabilities += component.critical_vulnerabilities or 0
+                    high_vulnerabilities += component.high_vulnerabilities or 0
                 
                 completion_data = {
                     'status': AnalysisStatus.COMPLETED,
@@ -121,9 +121,9 @@ class WorkflowEngine:
                 logger.error(f"Analysis {analysis_id} not found in database")
                 return
             
-            # Prepare component data for bulk upsert and deduplicate
+            # Prepare component data for bulk upsert and deduplicate with vulnerability merging
             components_data = []
-            seen_components = set()
+            seen_components = {}  # Changed to dict to store component data for merging
             
             for component_data in components:
                 component_dict = component_data.dict() if hasattr(component_data, 'dict') else component_data
@@ -141,11 +141,6 @@ class WorkflowEngine:
                 version = component_dict.get('version', '')
                 unique_key = (name, version, component_type)
                 
-                # Skip if we've already seen this component
-                if unique_key in seen_components:
-                    continue
-                seen_components.add(unique_key)
-                
                 db_component_data = {
                     'name': name,
                     'version': version,
@@ -158,9 +153,35 @@ class WorkflowEngine:
                     'component_metadata': component_dict.get('metadata', {}),
                     'syft_metadata': component_dict.get('syft_metadata', {})
                 }
-                components_data.append(db_component_data)
+                
+                # Merge vulnerability data if we've seen this component before
+                if unique_key in seen_components:
+                    existing = seen_components[unique_key]
+                    # Take maximum vulnerability counts to avoid double-counting same vulnerabilities
+                    existing['vulnerability_count'] = max(
+                        existing['vulnerability_count'], 
+                        db_component_data['vulnerability_count']
+                    )
+                    existing['critical_vulnerabilities'] = max(
+                        existing['critical_vulnerabilities'], 
+                        db_component_data['critical_vulnerabilities']
+                    )
+                    existing['high_vulnerabilities'] = max(
+                        existing['high_vulnerabilities'], 
+                        db_component_data['high_vulnerabilities']
+                    )
+                    # Update metadata if new component has more data
+                    if db_component_data['component_metadata']:
+                        existing['component_metadata'].update(db_component_data['component_metadata'])
+                    if db_component_data['syft_metadata']:
+                        existing['syft_metadata'].update(db_component_data['syft_metadata'])
+                else:
+                    seen_components[unique_key] = db_component_data
             
-            logger.info(f"Storing {len(components_data)} unique components (deduplicated from {len(components)} total)")
+            # Convert merged components to list
+            components_data = list(seen_components.values())
+            
+            logger.info(f"Storing {len(components_data)} unique components (merged from {len(components)} total components)")
             
             # Use bulk create or update to handle duplicates
             component_repo.bulk_create_or_update(components_data, analysis.id)
