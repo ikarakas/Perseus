@@ -152,9 +152,24 @@ class MonitoringDashboard:
                             Build: {build_info['timestamp'][:10]} | Environment: {build_info['environment']}
                         </div>
                         
-                        <!-- Enhanced Portal Shortcut -->
+                        <!-- Enhanced Portal and API Reference Shortcuts -->
                         <div style="margin-top: 15px;">
                             <a href="/dashboard/enhanced" 
+                               style="display: inline-block; 
+                                      background: linear-gradient(45deg, #4fd1c7, #3aa99f); 
+                                      color: white; 
+                                      padding: 12px 25px; 
+                                      text-decoration: none; 
+                                      border-radius: 25px; 
+                                      font-weight: bold; 
+                                      box-shadow: 0 4px 15px rgba(79, 209, 199, 0.3);
+                                      transition: transform 0.2s, box-shadow 0.2s;
+                                      margin-right: 15px;"
+                               onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(79, 209, 199, 0.4)'"
+                               onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 15px rgba(79, 209, 199, 0.3)'">
+                                🚀 Enhanced Portal - Database Analytics
+                            </a>
+                            <a href="/api-reference" 
                                style="display: inline-block; 
                                       background: linear-gradient(45deg, #4fd1c7, #3aa99f); 
                                       color: white; 
@@ -166,7 +181,7 @@ class MonitoringDashboard:
                                       transition: transform 0.2s, box-shadow 0.2s;"
                                onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(79, 209, 199, 0.4)'"
                                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 15px rgba(79, 209, 199, 0.3)'">
-                                🚀 Enhanced Portal - Database Analytics
+                                🔗 API Reference & Links
                             </a>
                         </div>
                     </div>
@@ -329,47 +344,6 @@ class MonitoringDashboard:
                         </div>
                     </div>
                     
-                    <!-- API Reference -->
-                    <div class="card">
-                        <h3>🔗 Quick API Reference</h3>
-                        <div class="code">
-                            <strong>Copy files to data directory:</strong><br>
-                            cp -r /path/to/project ./data/my-project
-                        </div>
-                        <div class="code">
-                            <strong>Analyze source code via curl:</strong><br>
-                            curl -X POST http://localhost:8000/analyze/source \\<br>
-                            &nbsp;&nbsp;-H "Content-Type: application/json" \\<br>
-                            &nbsp;&nbsp;-d '{{"type":"source","language":"java","location":"/app/data/my-project"}}'
-                        </div>
-                        <div class="code">
-                            <strong>Analyze Docker image via curl:</strong><br>
-                            curl -X POST http://localhost:8000/analyze/docker \\<br>
-                            &nbsp;&nbsp;-H "Content-Type: application/json" \\<br>
-                            &nbsp;&nbsp;-d '{{"type":"docker","location":"ubuntu:latest"}}'
-                        </div>
-                        <div class="code">
-                            <strong>CI/CD Integration (register build):</strong><br>
-                            curl -X POST http://localhost:8000/api/v1/cicd/builds \\<br>
-                            &nbsp;&nbsp;-H "Content-Type: application/json" \\<br>
-                            &nbsp;&nbsp;-d '{{"build_id":"build-123","project":{{"name":"my-project","path":"./data/my-project"}},"ci_context":{{"platform":"jenkins"}}}}'
-                        </div>
-                        <div class="code">
-                            <strong>Analyze OS (Linux only) via curl:</strong><br>
-                            curl -X POST http://localhost:8000/analyze/os \\<br>
-                            &nbsp;&nbsp;-H "Content-Type: application/json" \\<br>
-                            &nbsp;&nbsp;-d '{{"type":"os","location":"localhost"}}'
-                        </div>
-                        <p><strong>Useful Links:</strong></p>
-                        <ul>
-                            <li><a href="/dashboard/enhanced" target="_blank" style="color: #4fd1c7; font-weight: bold;">🚀 Enhanced Portal - Database Analytics</a></li>
-                            <li><a href="/components/search" target="_blank">🔍 Component Search</a></li>
-                            <li><a href="/api/metrics" target="_blank">📈 Platform Metrics</a></li>
-                            <li><a href="/health" target="_blank">❤️ Health Check</a></li>
-                            <li><a href="/docs" target="_blank">📖 API Documentation</a></li>
-                            <li><a href="/api/v1/cicd/builds" target="_blank">🚀 CI/CD API</a></li>
-                        </ul>
-                    </div>
                     
                     <!-- Telemetry Agents -->
                     <div class="card">
@@ -702,8 +676,12 @@ class MonitoringDashboard:
                                                     </span>
                                                 </div>
                                                 <button class="btn" onclick="viewAnalysisDetails('${{analysis.analysis_id}}')" 
-                                                        style="padding: 6px 12px; font-size: 12px;">
+                                                        style="padding: 6px 12px; font-size: 12px; margin-right: 8px;">
                                                     📊 View Details
+                                                </button>
+                                                <button class="btn btn-danger" onclick="deleteAnalysis('${{analysis.analysis_id}}')" 
+                                                        style="padding: 6px 12px; font-size: 12px; background-color: #dc3545; color: white; border: none;">
+                                                    🗑️ Delete
                                                 </button>
                                             </div>
                                             <div style="font-size: 13px; color: #7f8c8d; margin-top: 8px;">
@@ -761,6 +739,62 @@ class MonitoringDashboard:
                         window.open(`/dashboard/enhanced#analysis-${{analysisId}}`, '_blank');
                     }}
                     
+                    async function deleteAnalysis(analysisId) {{
+                        // Show confirmation dialog
+                        const confirmed = confirm(
+                            `⚠️ Are you sure you want to delete analysis ${{analysisId}}?\\n\\n` +
+                            `This will permanently delete:\\n` +
+                            `• The analysis record\\n` +
+                            `• All associated components\\n` +
+                            `• Related vulnerability scans\\n` +
+                            `• Generated SBOMs\\n` +
+                            `• Analysis result files\\n\\n` +
+                            `This action cannot be undone!`
+                        );
+                        
+                        if (!confirmed) {{
+                            return;
+                        }}
+                        
+                        try {{
+                            // Show loading state
+                            const deleteBtn = document.querySelector(`button[onclick="deleteAnalysis('${{analysisId}}')"]`);
+                            const originalText = deleteBtn.innerHTML;
+                            deleteBtn.innerHTML = '⏳ Deleting...';
+                            deleteBtn.disabled = true;
+                            
+                            const response = await fetch(`/api/v1/analyses/${{analysisId}}`, {{
+                                method: 'DELETE',
+                                headers: {{
+                                    'Content-Type': 'application/json'
+                                }}
+                            }});
+                            
+                            if (response.ok) {{
+                                const result = await response.json();
+                                alert(`✅ Analysis ${{analysisId}} deleted successfully!`);
+                                
+                                // Refresh the analyses list
+                                await loadMetrics();
+                                await loadAllAnalyses();
+                            }} else {{
+                                const error = await response.json();
+                                throw new Error(error.detail || 'Failed to delete analysis');
+                            }}
+                            
+                        }} catch (error) {{
+                            console.error('Error deleting analysis:', error);
+                            alert(`❌ Failed to delete analysis: ${{error.message}}`);
+                            
+                            // Restore button state
+                            const deleteBtn = document.querySelector(`button[onclick="deleteAnalysis('${{analysisId}}')"]`);
+                            if (deleteBtn) {{
+                                deleteBtn.innerHTML = originalText;
+                                deleteBtn.disabled = false;
+                            }}
+                        }}
+                    }}
+                    
                     // Load metrics on page load
                     async function loadMetrics() {{
                         try {{
@@ -769,7 +803,16 @@ class MonitoringDashboard:
                             
                             document.getElementById('analysisCount').textContent = metrics.analysis_statistics.total_analyses || 0;
                             document.getElementById('sbomCount').textContent = metrics.sbom_statistics.total_sboms || 0;
-                            document.getElementById('uptime').textContent = 'N/A';
+                            
+                            // Get uptime from system metrics
+                            try {{
+                                const healthResponse = await fetch('/health');
+                                const healthData = await healthResponse.json();
+                                document.getElementById('uptime').textContent = healthData.uptime_hours ? 
+                                    healthData.uptime_hours.toFixed(1) + 'h' : 'N/A';
+                            }} catch {{
+                                document.getElementById('uptime').textContent = 'N/A';
+                            }}
                         }} catch (error) {{
                             console.error('Error loading metrics:', error);
                         }}

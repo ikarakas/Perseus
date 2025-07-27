@@ -21,6 +21,7 @@ from ..monitoring.metrics import MetricsCollector
 from ..monitoring.dashboard import MonitoringDashboard
 from ..monitoring.database_dashboard import DatabaseDashboard
 from ..monitoring.component_search_ui import setup_component_search_routes
+from ..monitoring.api_reference import setup_api_reference_routes
 from ..telemetry.api import router as telemetry_router, init_telemetry_api
 from ..telemetry.storage import TelemetryStorage
 from .cicd import router as cicd_router
@@ -122,6 +123,7 @@ if os.path.exists(static_dir):
 dashboard.setup_routes(app)
 database_dashboard.setup_routes(app)
 setup_component_search_routes(app)
+setup_api_reference_routes(app)
 
 @app.get("/")
 async def root():
@@ -533,6 +535,57 @@ async def get_analysis_detail(analysis_id: str, db: Session = Depends(get_db_ses
     except Exception as e:
         logger.error(f"Error getting analysis detail: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/v1/analyses/{analysis_id}")
+async def delete_analysis(analysis_id: str, db: Session = Depends(get_db_session)):
+    """Delete a specific analysis and all its related data"""
+    try:
+        analysis_repo = AnalysisRepository(db)
+        analysis = analysis_repo.get_by_analysis_id(analysis_id)
+        
+        if not analysis:
+            raise HTTPException(status_code=404, detail="Analysis not found")
+        
+        # Delete the analysis (this will cascade to related tables due to FK constraints)
+        analysis_repo.delete(analysis.id)
+        
+        # Commit the transaction
+        db.commit()
+        
+        # Also clean up the analysis result files from filesystem
+        try:
+            import os
+            import glob
+            
+            # Clean up analysis result files
+            analysis_files = glob.glob(f"data/analysis_results/*{analysis_id}*")
+            for file_path in analysis_files:
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+            
+            # Clean up related SBOM files 
+            sbom_files = glob.glob(f"data/sboms/*{analysis_id}*")
+            for file_path in sbom_files:
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+                    
+        except Exception as cleanup_error:
+            logger.warning(f"Failed to clean up files for analysis {analysis_id}: {cleanup_error}")
+        
+        logger.info(f"Successfully deleted analysis {analysis_id}")
+        
+        return {
+            "message": f"Analysis {analysis_id} deleted successfully",
+            "analysis_id": analysis_id,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting analysis {analysis_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete analysis: {str(e)}")
 
 
 @app.get("/api/v1/components/search")
