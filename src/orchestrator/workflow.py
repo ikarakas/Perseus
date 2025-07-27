@@ -78,13 +78,29 @@ class WorkflowEngine:
             analysis = analysis_repo.get_by_analysis_id(analysis_id)
             
             if analysis:
+                # Calculate vulnerability counts from components
+                total_vulnerabilities = 0
+                critical_vulnerabilities = 0
+                high_vulnerabilities = 0
+                
+                if analysis_result.components:
+                    for component in analysis_result.components:
+                        component_dict = component.dict() if hasattr(component, 'dict') else component
+                        vuln_count = component_dict.get('vulnerability_count', 0)
+                        critical_count = component_dict.get('critical_vulnerabilities', 0)
+                        high_count = component_dict.get('high_vulnerabilities', 0)
+                        
+                        total_vulnerabilities += vuln_count
+                        critical_vulnerabilities += critical_count
+                        high_vulnerabilities += high_count
+                
                 completion_data = {
                     'status': AnalysisStatus.COMPLETED,
                     'completed_at': datetime.utcnow(),
                     'component_count': len(analysis_result.components) if analysis_result.components else 0,
-                    'vulnerability_count': getattr(analysis_result, 'vulnerability_count', 0),
-                    'critical_vulnerability_count': getattr(analysis_result, 'critical_vulnerability_count', 0),
-                    'high_vulnerability_count': getattr(analysis_result, 'high_vulnerability_count', 0),
+                    'vulnerability_count': total_vulnerabilities,
+                    'critical_vulnerability_count': critical_vulnerabilities,
+                    'high_vulnerability_count': high_vulnerabilities,
                     'duration_seconds': (datetime.utcnow() - analysis.started_at).total_seconds() if analysis.started_at else None
                 }
                 
@@ -340,22 +356,55 @@ class WorkflowEngine:
             logger.info(f"Starting SBOM generation {sbom_id}")
             start_time = datetime.utcnow()
             
-            # Collect analysis results
+            # Collect analysis results and metadata
             analysis_results = []
-            for analysis_id in request.analysis_ids:
-                result = self.storage.get_analysis_result(analysis_id)
-                if result:
-                    analysis_results.append(result)
+            analysis_metadata = None
+            db_session_temp = None
+            
+            try:
+                if self.use_database:
+                    db_session_temp = next(get_db_session())
+                    analysis_repo = AnalysisRepository(db_session_temp)
+                
+                for analysis_id in request.analysis_ids:
+                    result = self.storage.get_analysis_result(analysis_id)
+                    if result:
+                        analysis_results.append(result)
+                        
+                        # Get analysis metadata from database if available (use first analysis)
+                        if analysis_metadata is None and self.use_database and db_session_temp:
+                            db_analysis = analysis_repo.get_by_analysis_id(analysis_id)
+                            if db_analysis:
+                                analysis_metadata = {
+                                    "analysis_id": db_analysis.analysis_id,
+                                    "analysis_type": db_analysis.analysis_type,
+                                    "location": db_analysis.location,
+                                    "language": db_analysis.language,
+                                    "source_metadata": {
+                                        "started_at": db_analysis.started_at.isoformat() if db_analysis.started_at else None,
+                                        "completed_at": db_analysis.completed_at.isoformat() if db_analysis.completed_at else None,
+                                        "duration_seconds": db_analysis.duration_seconds,
+                                        "component_count": db_analysis.component_count,
+                                        "vulnerability_count": db_analysis.vulnerability_count
+                                    }
+                                }
+                                # Add any additional metadata from the analysis_metadata field
+                                if db_analysis.analysis_metadata:
+                                    analysis_metadata["source_metadata"].update(db_analysis.analysis_metadata)
+            finally:
+                if db_session_temp:
+                    db_session_temp.close()
             
             if not analysis_results:
                 raise ValueError("No valid analysis results found")
             
-            # Generate SBOM
+            # Generate SBOM with analysis metadata
             sbom_data = await self.sbom_generator.generate(
                 analysis_results,
                 request.format,
                 request.include_licenses,
-                request.include_vulnerabilities
+                request.include_vulnerabilities,
+                analysis_metadata
             )
             
             # Store SBOM in file system (for backward compatibility)

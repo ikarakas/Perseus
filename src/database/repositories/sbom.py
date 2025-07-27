@@ -56,6 +56,14 @@ class SBOMRepository(BaseRepository[SBOM]):
             SBOM.created_at.desc()
         ).limit(limit).all()
     
+    def get_recent_sboms_with_analysis(self, limit: int = 10) -> List[SBOM]:
+        """Get recent SBOMs with analysis relationship loaded"""
+        return self.session.query(SBOM).options(
+            joinedload(SBOM.analysis)
+        ).order_by(
+            SBOM.created_at.desc()
+        ).limit(limit).all()
+    
     def get_sbom_statistics(self) -> Dict[str, Any]:
         """Get SBOM generation statistics"""
         total_sboms = self.session.query(func.count(SBOM.id)).scalar()

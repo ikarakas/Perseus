@@ -452,6 +452,9 @@ async def list_analyses(
     try:
         analysis_repo = AnalysisRepository(db)
         
+        # Get total count for pagination
+        total_count = analysis_repo.session.query(analysis_repo.model).count()
+        
         if status:
             from ..database.models import AnalysisStatus
             status_enum = AnalysisStatus(status)
@@ -459,7 +462,7 @@ async def list_analyses(
         elif analysis_type:
             analyses = analysis_repo.get_analyses_by_type(analysis_type, limit=limit)
         else:
-            analyses = analysis_repo.get_all(limit=limit, offset=offset)
+            analyses = analysis_repo.get_recent_analyses(limit=limit, offset=offset)
         
         return {
             "analyses": [
@@ -472,11 +475,16 @@ async def list_analyses(
                     "vulnerability_count": a.vulnerability_count,
                     "created_at": a.created_at,
                     "completed_at": a.completed_at,
-                    "duration_seconds": a.duration_seconds
+                    "duration_seconds": a.duration_seconds,
+                    "source_info": {
+                        "analysis_type": a.analysis_type,
+                        "target_location": a.location,
+                        "analysis_id": a.analysis_id
+                    }
                 }
                 for a in analyses
             ],
-            "total": len(analyses)
+            "total": total_count
         }
     except Exception as e:
         logger.error(f"Error listing analyses: {e}")
@@ -645,8 +653,14 @@ async def list_sboms(
         
         if format:
             sboms = sbom_repo.get_by_format(format, limit=limit)
+            # Load analysis relationships for format-filtered results
+            from sqlalchemy.orm import joinedload
+            sbom_ids = [s.sbom_id for s in sboms]
+            sboms = sbom_repo.session.query(SBOM).options(
+                joinedload(SBOM.analysis)
+            ).filter(SBOM.sbom_id.in_(sbom_ids)).all() if sbom_ids else []
         else:
-            sboms = sbom_repo.get_recent_sboms(limit=limit)
+            sboms = sbom_repo.get_recent_sboms_with_analysis(limit=limit)
         
         return {
             "sboms": [
@@ -658,7 +672,7 @@ async def list_sboms(
                     "namespace": s.namespace,
                     "created_by": s.created_by,
                     "created_at": s.created_at,
-                    "analysis_id": str(s.analysis_id)
+                    "analysis_id": s.analysis.analysis_id if s.analysis else None
                 }
                 for s in sboms
             ],

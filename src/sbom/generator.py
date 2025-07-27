@@ -46,15 +46,16 @@ class SBOMGenerator:
     
     async def generate(self, analysis_results: List[AnalysisResult], 
                       format: SBOMFormat, include_licenses: bool = True,
-                      include_vulnerabilities: bool = True) -> Dict[str, Any]:
-        """Generate SBOM in specified format"""
+                      include_vulnerabilities: bool = True,
+                      analysis_metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Generate SBOM in specified format with source/target metadata"""
         try:
             if format == SBOMFormat.SPDX:
-                return self._generate_spdx(analysis_results, include_licenses)
+                return self._generate_spdx(analysis_results, include_licenses, include_vulnerabilities, analysis_metadata)
             elif format == SBOMFormat.CYCLONEDX:
-                return self._generate_cyclonedx(analysis_results, include_licenses, include_vulnerabilities)
+                return self._generate_cyclonedx(analysis_results, include_licenses, include_vulnerabilities, analysis_metadata)
             elif format == SBOMFormat.SWID:
-                return self._generate_swid(analysis_results, include_licenses)
+                return self._generate_swid(analysis_results, include_licenses, analysis_metadata)
             else:
                 raise ValueError(f"Unsupported SBOM format: {format}")
                 
@@ -63,7 +64,8 @@ class SBOMGenerator:
             raise
     
     def _generate_spdx(self, analysis_results: List[AnalysisResult], 
-                      include_licenses: bool) -> Dict[str, Any]:
+                      include_licenses: bool, include_vulnerabilities: bool,
+                      analysis_metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Generate SPDX 2.3 format SBOM"""
         document_name = f"SBOM-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}"
         document_namespace = f"https://sbom-platform.local/{document_name}"
@@ -99,12 +101,47 @@ class SBOMGenerator:
                     package["licenseConcluded"] = "NOASSERTION"
                 
                 # Add PURL as external reference if available
+                external_refs = []
                 if component.purl:
-                    package["externalRefs"] = [{
+                    external_refs.append({
                         "referenceCategory": "PACKAGE_MANAGER",
                         "referenceType": "purl",
                         "referenceLocator": component.purl
+                    })
+                
+                # Add vulnerability information if requested and available
+                if include_vulnerabilities and hasattr(component, 'vulnerability_count') and component.vulnerability_count > 0:
+                    # Add vulnerability count as annotation
+                    package["annotations"] = [{
+                        "annotationType": "REVIEW",
+                        "annotator": f"Tool: {self.tool_name}",
+                        "annotationDate": datetime.utcnow().isoformat() + "Z",
+                        "annotationComment": f"Vulnerabilities found: {component.vulnerability_count} total"
                     }]
+                    
+                    # Add severity breakdown if available
+                    vuln_details = []
+                    if hasattr(component, 'critical_vulnerabilities') and component.critical_vulnerabilities:
+                        vuln_details.append(f"{component.critical_vulnerabilities} critical")
+                    if hasattr(component, 'high_vulnerabilities') and component.high_vulnerabilities:
+                        vuln_details.append(f"{component.high_vulnerabilities} high")
+                    if hasattr(component, 'medium_vulnerabilities') and component.medium_vulnerabilities:
+                        vuln_details.append(f"{component.medium_vulnerabilities} medium")
+                    if hasattr(component, 'low_vulnerabilities') and component.low_vulnerabilities:
+                        vuln_details.append(f"{component.low_vulnerabilities} low")
+                    
+                    if vuln_details:
+                        package["annotations"][0]["annotationComment"] += f" ({', '.join(vuln_details)})"
+                    
+                    # Add vulnerability external reference for security scanning
+                    external_refs.append({
+                        "referenceCategory": "SECURITY",
+                        "referenceType": "advisory",
+                        "referenceLocator": f"vulnerability-scan:{component.vulnerability_count}-found"
+                    })
+                
+                if external_refs:
+                    package["externalRefs"] = external_refs
                 
                 # Add analyzer info
                 package["supplier"] = f"Tool: {analyzer_info}"
@@ -117,7 +154,7 @@ class SBOMGenerator:
                 
                 packages.append(package)
         
-        return {
+        spdx_doc = {
             "spdxVersion": "SPDX-2.3",
             "dataLicense": "CC0-1.0",
             "SPDXID": "SPDXRef-DOCUMENT",
@@ -129,9 +166,32 @@ class SBOMGenerator:
             },
             "packages": packages
         }
+        
+        # Add analysis source/target information
+        if analysis_metadata:
+            spdx_doc["documentDescribes"] = []
+            spdx_doc["externalDocumentRefs"] = []
+            
+            # Add source/target information as document comment
+            source_info = []
+            if analysis_metadata.get("location"):
+                source_info.append(f"Analysis Target: {analysis_metadata['location']}")
+            if analysis_metadata.get("analysis_type"):
+                source_info.append(f"Analysis Type: {analysis_metadata['analysis_type']}")
+            if analysis_metadata.get("analysis_id"):
+                source_info.append(f"Analysis ID: {analysis_metadata['analysis_id']}")
+            if analysis_metadata.get("source_metadata"):
+                for key, value in analysis_metadata["source_metadata"].items():
+                    source_info.append(f"{key}: {value}")
+            
+            if source_info:
+                spdx_doc["comment"] = "\n".join(source_info)
+        
+        return spdx_doc
     
     def _generate_cyclonedx(self, analysis_results: List[AnalysisResult], 
-                           include_licenses: bool, include_vulnerabilities: bool) -> Dict[str, Any]:
+                           include_licenses: bool, include_vulnerabilities: bool,
+                           analysis_metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Generate CycloneDX 1.5 format SBOM"""
         
         components = []
@@ -186,7 +246,7 @@ class SBOMGenerator:
                 
                 components.append(comp_data)
         
-        return {
+        cyclonedx_doc = {
             "bomFormat": "CycloneDX",
             "specVersion": "1.5",
             "serialNumber": f"urn:uuid:{uuid.uuid4()}",
@@ -201,9 +261,53 @@ class SBOMGenerator:
             },
             "components": components
         }
+        
+        # Add analysis source/target information to metadata
+        if analysis_metadata:
+            # Add component representing the analyzed target
+            target_component = {
+                "type": "application",
+                "bom-ref": f"target:{analysis_metadata.get('analysis_id', 'unknown')}",
+                "name": analysis_metadata.get("location", "Unknown Target"),
+                "version": "unknown"
+            }
+            
+            # Add properties with analysis details
+            properties = []
+            if analysis_metadata.get("analysis_type"):
+                properties.append({
+                    "name": "sbom:analysis_type",
+                    "value": analysis_metadata["analysis_type"]
+                })
+            if analysis_metadata.get("analysis_id"):
+                properties.append({
+                    "name": "sbom:analysis_id", 
+                    "value": analysis_metadata["analysis_id"]
+                })
+            if analysis_metadata.get("location"):
+                properties.append({
+                    "name": "sbom:target_location",
+                    "value": analysis_metadata["location"]
+                })
+            
+            # Add source metadata as properties
+            if analysis_metadata.get("source_metadata"):
+                for key, value in analysis_metadata["source_metadata"].items():
+                    properties.append({
+                        "name": f"sbom:source_{key}",
+                        "value": str(value)
+                    })
+            
+            if properties:
+                target_component["properties"] = properties
+            
+            cyclonedx_doc["metadata"]["component"] = target_component
+        
+        return cyclonedx_doc
     
     def _generate_swid(self, analysis_results: List[AnalysisResult], 
-                      include_licenses: bool) -> Dict[str, Any]:
+                      include_licenses: bool,
+                      analysis_metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Generate SWID tag format SBOM"""
         swid_tag = {
             "SoftwareIdentity": {
@@ -220,6 +324,24 @@ class SBOMGenerator:
                 }
             }
         }
+        
+        # Add analysis metadata as additional Entity elements
+        if analysis_metadata:
+            entities = [swid_tag["SoftwareIdentity"]["Entity"]]
+            
+            if analysis_metadata.get("location"):
+                entities.append({
+                    "@name": f"Analysis Target: {analysis_metadata['location']}",
+                    "@role": "aggregator"
+                })
+            
+            if analysis_metadata.get("analysis_type"):
+                entities.append({
+                    "@name": f"Analysis Type: {analysis_metadata['analysis_type']}",
+                    "@role": "distributor"
+                })
+            
+            swid_tag["SoftwareIdentity"]["Entity"] = entities
         
         # Add components as resources
         resources = []

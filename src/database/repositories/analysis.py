@@ -34,11 +34,18 @@ class AnalysisRepository(BaseRepository[Analysis]):
             Analysis.analysis_id == analysis_id
         ).first()
     
-    def get_recent_analyses(self, limit: int = 10) -> List[Analysis]:
+    def get_recent_analyses(self, limit: int = 10, offset: int = 0) -> List[Analysis]:
         """Get recent analyses ordered by creation date"""
-        return self.session.query(Analysis).order_by(
+        query = self.session.query(Analysis).order_by(
             Analysis.created_at.desc()
-        ).limit(limit).all()
+        )
+        
+        if offset:
+            query = query.offset(offset)
+        if limit:
+            query = query.limit(limit)
+            
+        return query.all()
     
     def get_by_status(self, status: AnalysisStatus, limit: int = None) -> List[Analysis]:
         """Get analyses by status"""
