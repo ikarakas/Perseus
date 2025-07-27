@@ -62,7 +62,7 @@ class WorkflowEngine:
                 'started_at': datetime.utcnow(),
                 'analysis_metadata': {
                     'request_data': request.dict(),
-                    'workflow_version': '1.4.0'
+                    'workflow_version': '1.5.0'
                 }
             }
             
@@ -469,7 +469,7 @@ class WorkflowEngine:
                             'content': sbom_data,
                             'name': sbom_data.get('name', f"SBOM-{sbom_id}"),
                             'namespace': sbom_data.get('documentNamespace') or sbom_data.get('metadata', {}).get('component', {}).get('bom-ref', ''),
-                            'created_by': 'Perseus Platform v1.4.0',
+                            'created_by': 'Perseus Platform v1.5.0',
                             'component_count': total_components,
                             'file_path': f"data/sboms/{sbom_id}.json",
                             'analysis_id': primary_analysis.id

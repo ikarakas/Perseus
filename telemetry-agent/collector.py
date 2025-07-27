@@ -56,7 +56,7 @@ class BOMCollector:
                     **result.metadata,
                     "scan_timestamp": datetime.now(timezone.utc).isoformat(),
                     "agent_id": self.agent_id,
-                    "agent_version": "1.4.0",
+                    "agent_version": "1.5.0",
                     "deep_scan": deep_scan
                 }
             }
