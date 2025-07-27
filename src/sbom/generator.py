@@ -12,6 +12,7 @@ from typing import List, Dict, Any, Optional
 import yaml
 
 from ..api.models import AnalysisResult, SBOMFormat
+from ..common.version import version_config
 
 logger = logging.getLogger(__name__)
 
@@ -19,8 +20,9 @@ class SBOMGenerator:
     """Generator for creating SBOMs in multiple formats"""
     
     def __init__(self):
-        self.tool_name = "SBOM Generation Platform"
-        self.tool_version = "1.4.0"
+        self.tool_name = "Perseus"
+        self.tool_version = version_config.get_version_string()
+        self.author = "Ilker Karakas"
     
     def _map_component_type(self, syft_type: str) -> str:
         """Map Syft component type to CycloneDX component type"""
@@ -46,15 +48,16 @@ class SBOMGenerator:
     
     async def generate(self, analysis_results: List[AnalysisResult], 
                       format: SBOMFormat, include_licenses: bool = True,
-                      include_vulnerabilities: bool = True) -> Dict[str, Any]:
-        """Generate SBOM in specified format"""
+                      include_vulnerabilities: bool = True,
+                      analysis_metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Generate SBOM in specified format with source/target metadata"""
         try:
             if format == SBOMFormat.SPDX:
-                return self._generate_spdx(analysis_results, include_licenses)
+                return self._generate_spdx(analysis_results, include_licenses, include_vulnerabilities, analysis_metadata)
             elif format == SBOMFormat.CYCLONEDX:
-                return self._generate_cyclonedx(analysis_results, include_licenses, include_vulnerabilities)
+                return self._generate_cyclonedx(analysis_results, include_licenses, include_vulnerabilities, analysis_metadata)
             elif format == SBOMFormat.SWID:
-                return self._generate_swid(analysis_results, include_licenses)
+                return self._generate_swid(analysis_results, include_licenses, analysis_metadata)
             else:
                 raise ValueError(f"Unsupported SBOM format: {format}")
                 
@@ -63,7 +66,8 @@ class SBOMGenerator:
             raise
     
     def _generate_spdx(self, analysis_results: List[AnalysisResult], 
-                      include_licenses: bool) -> Dict[str, Any]:
+                      include_licenses: bool, include_vulnerabilities: bool,
+                      analysis_metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Generate SPDX 2.3 format SBOM"""
         document_name = f"SBOM-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}"
         document_namespace = f"https://sbom-platform.local/{document_name}"
@@ -99,12 +103,47 @@ class SBOMGenerator:
                     package["licenseConcluded"] = "NOASSERTION"
                 
                 # Add PURL as external reference if available
+                external_refs = []
                 if component.purl:
-                    package["externalRefs"] = [{
+                    external_refs.append({
                         "referenceCategory": "PACKAGE_MANAGER",
                         "referenceType": "purl",
                         "referenceLocator": component.purl
+                    })
+                
+                # Add vulnerability information if requested and available
+                if include_vulnerabilities and hasattr(component, 'vulnerability_count') and component.vulnerability_count > 0:
+                    # Add vulnerability count as annotation
+                    package["annotations"] = [{
+                        "annotationType": "REVIEW",
+                        "annotator": f"Tool: {self.tool_name}",
+                        "annotationDate": datetime.utcnow().isoformat() + "Z",
+                        "annotationComment": f"Vulnerabilities found: {component.vulnerability_count} total"
                     }]
+                    
+                    # Add severity breakdown if available
+                    vuln_details = []
+                    if hasattr(component, 'critical_vulnerabilities') and component.critical_vulnerabilities:
+                        vuln_details.append(f"{component.critical_vulnerabilities} critical")
+                    if hasattr(component, 'high_vulnerabilities') and component.high_vulnerabilities:
+                        vuln_details.append(f"{component.high_vulnerabilities} high")
+                    if hasattr(component, 'medium_vulnerabilities') and component.medium_vulnerabilities:
+                        vuln_details.append(f"{component.medium_vulnerabilities} medium")
+                    if hasattr(component, 'low_vulnerabilities') and component.low_vulnerabilities:
+                        vuln_details.append(f"{component.low_vulnerabilities} low")
+                    
+                    if vuln_details:
+                        package["annotations"][0]["annotationComment"] += f" ({', '.join(vuln_details)})"
+                    
+                    # Add vulnerability external reference for security scanning
+                    external_refs.append({
+                        "referenceCategory": "SECURITY",
+                        "referenceType": "advisory",
+                        "referenceLocator": f"vulnerability-scan:{component.vulnerability_count}-found"
+                    })
+                
+                if external_refs:
+                    package["externalRefs"] = external_refs
                 
                 # Add analyzer info
                 package["supplier"] = f"Tool: {analyzer_info}"
@@ -117,7 +156,7 @@ class SBOMGenerator:
                 
                 packages.append(package)
         
-        return {
+        spdx_doc = {
             "spdxVersion": "SPDX-2.3",
             "dataLicense": "CC0-1.0",
             "SPDXID": "SPDXRef-DOCUMENT",
@@ -125,13 +164,40 @@ class SBOMGenerator:
             "documentNamespace": document_namespace,
             "creationInfo": {
                 "created": datetime.utcnow().isoformat() + "Z",
-                "creators": [f"Tool: {self.tool_name}-{self.tool_version}"]
+                "creators": [
+                    f"Tool: {self.tool_name}-{self.tool_version}",
+                    f"Person: {self.author}"
+                ]
             },
             "packages": packages
         }
+        
+        # Add analysis source/target information
+        if analysis_metadata:
+            spdx_doc["documentDescribes"] = []
+            spdx_doc["externalDocumentRefs"] = []
+            
+            # Add source/target information as document comment
+            source_info = []
+            if analysis_metadata.get("location"):
+                source_info.append(f"Analysis Target: {analysis_metadata['location']}")
+            if analysis_metadata.get("analysis_type"):
+                source_info.append(f"Analysis Type: {analysis_metadata['analysis_type']}")
+            if analysis_metadata.get("analysis_id"):
+                source_info.append(f"Analysis ID: {analysis_metadata['analysis_id']}")
+            if analysis_metadata.get("source_metadata"):
+                for key, value in analysis_metadata["source_metadata"].items():
+                    if key != "workflow_version":  # Exclude workflow version
+                        source_info.append(f"{key}: {value}")
+            
+            if source_info:
+                spdx_doc["comment"] = "\n".join(source_info)
+        
+        return spdx_doc
     
     def _generate_cyclonedx(self, analysis_results: List[AnalysisResult], 
-                           include_licenses: bool, include_vulnerabilities: bool) -> Dict[str, Any]:
+                           include_licenses: bool, include_vulnerabilities: bool,
+                           analysis_metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Generate CycloneDX 1.5 format SBOM"""
         
         components = []
@@ -186,7 +252,7 @@ class SBOMGenerator:
                 
                 components.append(comp_data)
         
-        return {
+        cyclonedx_doc = {
             "bomFormat": "CycloneDX",
             "specVersion": "1.5",
             "serialNumber": f"urn:uuid:{uuid.uuid4()}",
@@ -194,32 +260,129 @@ class SBOMGenerator:
             "metadata": {
                 "timestamp": datetime.utcnow().isoformat() + "Z",
                 "tools": [{
-                    "vendor": "SBOM Platform",
+                    "vendor": "NATO AWACS",
                     "name": self.tool_name,
-                    "version": self.tool_version
+                    "version": self.tool_version,
+                    "author": self.author
                 }]
             },
             "components": components
         }
+        
+        # Add analysis source/target information to metadata
+        if analysis_metadata:
+            # Add component representing the analyzed target
+            target_component = {
+                "type": "application",
+                "bom-ref": f"target:{analysis_metadata.get('analysis_id', 'unknown')}",
+                "name": analysis_metadata.get("location", "Unknown Target"),
+                "version": "unknown"
+            }
+            
+            # Add properties with analysis details
+            properties = []
+            if analysis_metadata.get("analysis_type"):
+                properties.append({
+                    "name": "sbom:analysis_type",
+                    "value": analysis_metadata["analysis_type"]
+                })
+            if analysis_metadata.get("analysis_id"):
+                properties.append({
+                    "name": "sbom:analysis_id", 
+                    "value": analysis_metadata["analysis_id"]
+                })
+            if analysis_metadata.get("location"):
+                properties.append({
+                    "name": "sbom:target_location",
+                    "value": analysis_metadata["location"]
+                })
+            
+            # Add source metadata as properties
+            if analysis_metadata.get("source_metadata"):
+                for key, value in analysis_metadata["source_metadata"].items():
+                    if key != "workflow_version":  # Exclude workflow version
+                        properties.append({
+                            "name": f"sbom:source_{key}",
+                            "value": str(value)
+                        })
+            
+            if properties:
+                target_component["properties"] = properties
+            
+            cyclonedx_doc["metadata"]["component"] = target_component
+        
+        return cyclonedx_doc
     
     def _generate_swid(self, analysis_results: List[AnalysisResult], 
-                      include_licenses: bool) -> Dict[str, Any]:
+                      include_licenses: bool,
+                      analysis_metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Generate SWID tag format SBOM"""
+        # Generate unique name based on analysis target
+        sbom_name = f"SBOM-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}"
+        if analysis_metadata and analysis_metadata.get("location"):
+            # Extract filename or last part of path for better naming
+            target_name = analysis_metadata["location"].split('/')[-1]
+            sbom_name = f"SBOM-{target_name}-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}"
+        
         swid_tag = {
             "SoftwareIdentity": {
-                "@name": f"SBOM-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}",
+                "@name": sbom_name,
                 "@tagId": str(uuid.uuid4()),
                 "@version": "1.4.0",
                 "@xmlns": "http://standards.iso.org/iso/19770/-2/2015/schema.xsd",
+                "@versionScheme": "multipartnumeric",
+                "@corpus": "false",
+                "@patch": "false",
+                "@supplemental": "false",
                 "Entity": {
-                    "@name": self.tool_name,
-                    "@role": "tagCreator softwareCreator"
+                    "@name": f"{self.tool_name} ({self.author})",
+                    "@role": "tagCreator softwareCreator",
+                    "@thumbprint": f"generated-at-{datetime.utcnow().isoformat()}Z"
                 },
                 "Payload": {
                     "Resource": []
                 }
             }
         }
+        
+        # Add comprehensive analysis metadata as additional Entity elements
+        if analysis_metadata:
+            entities = [swid_tag["SoftwareIdentity"]["Entity"]]
+            
+            if analysis_metadata.get("location"):
+                entities.append({
+                    "@name": f"Analysis Target: {analysis_metadata['location']}",
+                    "@role": "aggregator"
+                })
+            
+            if analysis_metadata.get("analysis_type"):
+                entities.append({
+                    "@name": f"Analysis Type: {analysis_metadata['analysis_type']}",
+                    "@role": "distributor"
+                })
+            
+            if analysis_metadata.get("analysis_id"):
+                entities.append({
+                    "@name": f"Analysis ID: {analysis_metadata['analysis_id']}",
+                    "@role": "licensor"
+                })
+            
+            # Add metadata as Meta elements for better structure
+            meta_elements = []
+            
+            # Add all source metadata
+            if analysis_metadata.get("source_metadata"):
+                for key, value in analysis_metadata["source_metadata"].items():
+                    if key != "workflow_version":  # Exclude workflow version
+                        meta_elements.append({
+                            "@key": f"sbom:{key}",
+                            "@value": str(value)
+                        })
+            
+            if meta_elements:
+                swid_tag["SoftwareIdentity"]["Meta"] = meta_elements
+            
+            swid_tag["SoftwareIdentity"]["Entity"] = entities
         
         # Add components as resources
         resources = []

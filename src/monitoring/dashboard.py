@@ -292,6 +292,43 @@ class MonitoringDashboard:
                         </div>
                     </div>
                     
+                    
+                    <!-- All Analyses -->
+                    <div class="card" style="margin-top: 20px;">
+                        <h3>🔍 All Analyses</h3>
+                        <div style="margin-bottom: 15px;">
+                            <input type="text" id="analysisSearch" placeholder="Search by ID, type, or source..." 
+                                   style="padding: 8px; border-radius: 4px; border: 1px solid #ddd; width: 300px; margin-right: 10px;">
+                            <select id="analysisStatusFilter" style="padding: 8px; border-radius: 4px; border: 1px solid #ddd; margin-right: 10px;">
+                                <option value="">All Statuses</option>
+                                <option value="pending">Pending</option>
+                                <option value="running">Running</option>
+                                <option value="completed">Completed</option>
+                                <option value="failed">Failed</option>
+                            </select>
+                            <select id="analysisTypeFilter" style="padding: 8px; border-radius: 4px; border: 1px solid #ddd; margin-right: 10px;">
+                                <option value="">All Types</option>
+                                <option value="syft">Syft</option>
+                                <option value="manual">Manual</option>
+                                <option value="api">API</option>
+                                <option value="os">OS</option>
+                            </select>
+                            <button class="btn" onclick="searchAllAnalyses()" style="padding: 8px 16px;">🔍 Search</button>
+                        </div>
+                        <div style="margin-bottom: 10px; color: #7f8c8d;">
+                            Total Analyses: <span id="totalAnalysisCount" style="font-weight: bold;">-</span> | 
+                            Showing last 10 by default (use search to see all)
+                        </div>
+                        <div id="analysesList" style="max-height: 500px; overflow-y: auto; background: #f8f9fa; padding: 10px; border-radius: 4px;">
+                            <p>Loading analyses...</p>
+                        </div>
+                        <div id="analysisPagination" style="margin-top: 15px; text-align: center;">
+                            <button class="btn" id="prevAnalysisBtn" onclick="loadPrevAnalysisPage()" style="padding: 6px 12px;">← Previous</button>
+                            <span id="analysisPageInfo" style="margin: 0 15px;">Page 1</span>
+                            <button class="btn" id="nextAnalysisBtn" onclick="loadNextAnalysisPage()" style="padding: 6px 12px;">Next →</button>
+                        </div>
+                    </div>
+                    
                     <!-- API Reference -->
                     <div class="card">
                         <h3>🔗 Quick API Reference</h3>
@@ -497,7 +534,7 @@ class MonitoringDashboard:
                                         <h5>🔒 Vulnerability Scan Results</h5>
                                         <p><strong>Total Vulnerabilities:</strong> ${{totalVulns}}</p>
                                         <p><strong>Vulnerable Components:</strong> ${{vulnComponents}}</p>
-                                        <p><strong>Scan Date:</strong> ${{scanDate ? new Date(scanDate).toLocaleString() : 'Unknown'}}</p>
+                                        <p><strong>Scan Date:</strong> ${{scanDate ? new Date(scanDate).toLocaleString(undefined, {{timeZoneName: 'short'}}) : 'Unknown'}}</p>
                                     </div>
                                 `;
                             }} else if (results.metadata && results.metadata.vulnerability_scan_performed === false) {{
@@ -601,15 +638,138 @@ class MonitoringDashboard:
                         }}
                     }}
                     
+                    // Analysis pagination variables
+                    let currentAnalysisPage = 0;
+                    let analysisPageSize = 10;
+                    let totalAnalyses = 0;
+                    let currentAnalysisSearch = '';
+                    let currentAnalysisStatus = '';
+                    let currentAnalysisType = '';
+                    
+                    
+                    // Load all analyses with pagination
+                    async function loadAllAnalyses(page = 0, limit = 10) {{
+                        try {{
+                            const offset = page * limit;
+                            let url = `/api/v1/dashboard/analyses/all?offset=${{offset}}&limit=${{limit}}`;
+                            
+                            if (currentAnalysisSearch) {{
+                                url += `&search=${{encodeURIComponent(currentAnalysisSearch)}}`;
+                            }}
+                            if (currentAnalysisStatus) {{
+                                url += `&status=${{currentAnalysisStatus}}`;
+                            }}
+                            if (currentAnalysisType) {{
+                                url += `&analysis_type=${{currentAnalysisType}}`;
+                            }}
+                            
+                            const response = await fetch(url);
+                            const data = await response.json();
+                            
+                            totalAnalyses = data.total || 0;
+                            document.getElementById('totalAnalysisCount').textContent = totalAnalyses;
+                            
+                            // Update pagination
+                            const totalPages = Math.ceil(totalAnalyses / limit);
+                            document.getElementById('analysisPageInfo').textContent = `Page ${{page + 1}} of ${{totalPages || 1}}`;
+                            document.getElementById('prevAnalysisBtn').disabled = page === 0;
+                            document.getElementById('nextAnalysisBtn').disabled = page >= totalPages - 1;
+                            
+                            // Display analyses
+                            const analysesList = document.getElementById('analysesList');
+                            if (data.analyses && data.analyses.length > 0) {{
+                                analysesList.innerHTML = data.analyses.map(analysis => {{
+                                    const statusColor = {{
+                                        'completed': '#27ae60',
+                                        'failed': '#e74c3c',
+                                        'running': '#f39c12',
+                                        'pending': '#95a5a6'
+                                    }}[analysis.status] || '#95a5a6';
+                                    
+                                    const duration = analysis.duration_seconds ? 
+                                        `${{analysis.duration_seconds.toFixed(1)}}s` : 
+                                        'In progress';
+                                    
+                                    return `
+                                        <div style="background: white; padding: 15px; margin: 8px 0; border-radius: 4px; border-left: 4px solid ${{statusColor}};">
+                                            <div style="display: flex; justify-content: space-between; align-items: start;">
+                                                <div style="flex: 1;">
+                                                    <strong style="font-size: 16px;">
+                                                        ${{analysis.analysis_type.toUpperCase()}} Analysis
+                                                    </strong>
+                                                    <span style="background: ${{statusColor}}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px; margin-left: 10px;">
+                                                        ${{analysis.status}}
+                                                    </span>
+                                                </div>
+                                                <button class="btn" onclick="viewAnalysisDetails('${{analysis.analysis_id}}')" 
+                                                        style="padding: 6px 12px; font-size: 12px;">
+                                                    📊 View Details
+                                                </button>
+                                            </div>
+                                            <div style="font-size: 13px; color: #7f8c8d; margin-top: 8px;">
+                                                <div>🆔 <strong>ID:</strong> ${{analysis.analysis_id}}</div>
+                                                <div style="margin-top: 4px;">
+                                                    📦 <strong>Components:</strong> ${{analysis.component_count || 0}} | 
+                                                    🚨 <strong>Vulnerabilities:</strong> ${{analysis.vulnerability_count || 0}} 
+                                                    (${{analysis.critical_vulnerability_count || 0}} critical, ${{analysis.high_vulnerability_count || 0}} high)
+                                                </div>
+                                                ${{analysis.source_info ? `<div style="margin-top: 4px;">📁 <strong>Source:</strong> ${{analysis.source_info.target_location}} (${{analysis.source_info.analysis_type}})</div>` : ''}}
+                                                <div style="margin-top: 4px;">
+                                                    ⏰ <strong>Started:</strong> ${{new Date(analysis.created_at).toLocaleString(undefined, {{timeZoneName: 'short'}})}} | 
+                                                    ⏱️ <strong>Duration:</strong> ${{duration}}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `;
+                                }}).join('');
+                            }} else {{
+                                analysesList.innerHTML = '<p>No analyses found</p>';
+                            }}
+                            
+                            currentAnalysisPage = page;
+                            analysisPageSize = limit;
+                        }} catch (error) {{
+                            console.error('Error loading analyses:', error);
+                            document.getElementById('analysesList').innerHTML = '<p style="color: red;">Error loading analyses</p>';
+                        }}
+                    }}
+                    
+                    function searchAllAnalyses() {{
+                        currentAnalysisSearch = document.getElementById('analysisSearch').value;
+                        currentAnalysisStatus = document.getElementById('analysisStatusFilter').value;
+                        currentAnalysisType = document.getElementById('analysisTypeFilter').value;
+                        currentAnalysisPage = 0;
+                        // When searching, show more results
+                        loadAllAnalyses(0, currentAnalysisSearch || currentAnalysisStatus || currentAnalysisType ? 50 : 10);
+                    }}
+                    
+                    function loadPrevAnalysisPage() {{
+                        if (currentAnalysisPage > 0) {{
+                            loadAllAnalyses(currentAnalysisPage - 1, analysisPageSize);
+                        }}
+                    }}
+                    
+                    function loadNextAnalysisPage() {{
+                        const totalPages = Math.ceil(totalAnalyses / analysisPageSize);
+                        if (currentAnalysisPage < totalPages - 1) {{
+                            loadAllAnalyses(currentAnalysisPage + 1, analysisPageSize);
+                        }}
+                    }}
+                    
+                    async function viewAnalysisDetails(analysisId) {{
+                        // Open enhanced dashboard with this analysis highlighted
+                        window.open(`/dashboard/enhanced#analysis-${{analysisId}}`, '_blank');
+                    }}
+                    
                     // Load metrics on page load
                     async function loadMetrics() {{
                         try {{
-                            const response = await fetch('/api/metrics');
+                            const response = await fetch('/api/v1/dashboard/metrics');
                             const metrics = await response.json();
                             
-                            document.getElementById('analysisCount').textContent = metrics.analysis.total_analyses || 0;
-                            document.getElementById('sbomCount').textContent = metrics.sbom.total_sboms_generated || 0;
-                            document.getElementById('uptime').textContent = (metrics.system.uptime_hours || 0).toFixed(1) + 'h';
+                            document.getElementById('analysisCount').textContent = metrics.analysis_statistics.total_analyses || 0;
+                            document.getElementById('sbomCount').textContent = metrics.sbom_statistics.total_sboms || 0;
+                            document.getElementById('uptime').textContent = 'N/A';
                         }} catch (error) {{
                             console.error('Error loading metrics:', error);
                         }}
@@ -634,7 +794,7 @@ class MonitoringDashboard:
                                 let html = '';
                                 Object.entries(data.agents).forEach(([agentId, agent]) => {{
                                     const status = agent.connected ? '🟢' : '🔴';
-                                    const lastSeen = new Date(agent.last_seen).toLocaleString();
+                                    const lastSeen = new Date(agent.last_seen).toLocaleString(undefined, {{timeZoneName: 'short'}});
                                     const hostname = agent.metadata?.hostname || agentId;
                                     html += `
                                         <div style="padding: 8px; margin: 4px 0; background: #f8f9fa; border-radius: 4px; border-left: 3px solid ${{agent.connected ? '#27ae60' : '#e74c3c'}};">
@@ -684,6 +844,7 @@ class MonitoringDashboard:
                     // Load metrics on page load and refresh every 30 seconds
                     loadMetrics();
                     loadTelemetryData();
+                    loadAllAnalyses(0, 10);  // Load last 10 analyses by default
                     setInterval(loadMetrics, 30000);
                     setInterval(loadTelemetryData, 15000);
                     
@@ -736,7 +897,7 @@ class MonitoringDashboard:
                                     <button style="position: absolute; top: 10px; right: 10px; padding: 5px 10px;" onclick="this.parentElement.parentElement.remove()">✕</button>
                                     <h3>📋 BOM Data for ${{agentId}}</h3>
                                     <p><strong>Scan ID:</strong> ${{bomData.scan_id}}</p>
-                                    <p><strong>Timestamp:</strong> ${{new Date(bomData.timestamp).toLocaleString()}}</p>
+                                    <p><strong>Timestamp:</strong> ${{new Date(bomData.timestamp).toLocaleString(undefined, {{timeZoneName: 'short'}})}}</p>
                                     <p><strong>Total Components:</strong> ${{bomData.components ? bomData.components.length : 0}}</p>
                                     
                                     <h4>System Information</h4>
@@ -1163,7 +1324,7 @@ DASHBOARD_TEMPLATE = """
             document.getElementById('uptime').textContent = metrics.system.uptime_hours.toFixed(1) + 'h';
             
             // Update timestamp
-            document.getElementById('last-updated').textContent = 'Last updated: ' + new Date().toLocaleString();
+            document.getElementById('last-updated').textContent = 'Last updated: ' + new Date().toLocaleString(undefined, {{timeZoneName: 'short'}});
         }
         
         function updateAlerts(alerts) {
