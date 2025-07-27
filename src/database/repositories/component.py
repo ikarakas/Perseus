@@ -55,11 +55,42 @@ class ComponentRepository(BaseRepository[Component]):
             )
         ).limit(limit).all()
     
-    def get_vulnerable_components(self, min_severity: str = None) -> List[Component]:
+    def search_by_analysis_id(self, analysis_id_pattern: str, text_search: str = "", limit: int = 50) -> List[Component]:
+        """Search components by analysis ID pattern with optional text search"""
+        from ..models import Analysis
+        
+        # Join Component with Analysis using the defined relationship
+        query = self.session.query(Component).join(Component.analysis)
+        
+        # Filter by analysis ID pattern (supports partial matching)
+        analysis_pattern = f"%{analysis_id_pattern}%"
+        query = query.filter(Analysis.analysis_id.ilike(analysis_pattern))
+        
+        # Add text search if provided
+        if text_search:
+            text_pattern = f"%{text_search}%"
+            query = query.filter(
+                or_(
+                    Component.name.ilike(text_pattern),
+                    Component.description.ilike(text_pattern),
+                    Component.purl.ilike(text_pattern)
+                )
+            )
+        
+        return query.limit(limit).all()
+    
+    def get_vulnerable_components(self, min_severity: str = None, analysis_id: str = None) -> List[Component]:
         """Get components with vulnerabilities"""
         query = self.session.query(Component).filter(
             Component.vulnerability_count > 0
         )
+        
+        # Filter by analysis ID if provided
+        if analysis_id:
+            from ..models import Analysis
+            query = query.join(Component.analysis).filter(
+                Analysis.analysis_id.ilike(f"%{analysis_id}%")
+            )
         
         if min_severity == "critical":
             query = query.filter(Component.critical_vulnerabilities > 0)

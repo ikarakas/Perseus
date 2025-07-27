@@ -175,6 +175,11 @@ def setup_component_search_routes(app):
             
             <div class="search-filters">
                 <div class="filter-item">
+                    <label>Analysis ID (first 8 chars):</label>
+                    <input type="text" id="analysisIdFilter" placeholder="e.g. a517933d" 
+                           style="width: 120px;" onkeyup="handleAnalysisIdSearch(event)">
+                </div>
+                <div class="filter-item">
                     <label>Show only vulnerable:</label>
                     <input type="checkbox" id="vulnerableOnly" onchange="performSearch()">
                 </div>
@@ -189,11 +194,11 @@ def setup_component_search_routes(app):
                     </select>
                 </div>
                 <div class="filter-item">
-                    <label>Component Type:</label>
+                    <label title="Component type detected by analysis (library=dependency, application=main program, etc.)">Component Type:</label>
                     <select id="componentType" onchange="performSearch()">
-                        <option value="">All</option>
-                        <option value="library">Library</option>
-                        <option value="application">Application</option>
+                        <option value="">All Types</option>
+                        <option value="library">Library (dependencies)</option>
+                        <option value="application">Application (main programs)</option>
                         <option value="container">Container</option>
                         <option value="framework">Framework</option>
                     </select>
@@ -226,17 +231,31 @@ def setup_component_search_routes(app):
             }
         }
         
+        function handleAnalysisIdSearch(event) {
+            if (event.key === 'Enter') {
+                performSearch();
+            } else {
+                // Debounce search for analysis ID
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(performSearch, 300);
+            }
+        }
+        
         async function performSearch() {
             const query = document.getElementById('searchInput').value.trim();
             const vulnerableOnly = document.getElementById('vulnerableOnly').checked;
             const minSeverity = document.getElementById('minSeverity').value;
             const componentType = document.getElementById('componentType').value;
+            const analysisIdFilter = document.getElementById('analysisIdFilter').value.trim();
             
-            if (!query && !vulnerableOnly) {
+            if (!query && !vulnerableOnly && !analysisIdFilter) {
                 document.getElementById('results').innerHTML = `
                     <div class="no-results">
                         <h2>🔍 Search Components</h2>
-                        <p>Enter a search term above to find components across all analyses</p>
+                        <p>Enter a search term, analysis ID, or check "Show only vulnerable" to find components</p>
+                        <p style="margin-top: 1rem; font-size: 0.9rem; opacity: 0.8;">
+                            💡 Tip: Use the first 8 characters of an Analysis ID to filter components from specific analyses
+                        </p>
                     </div>
                 `;
                 return;
@@ -252,9 +271,11 @@ def setup_component_search_routes(app):
                 if (vulnerableOnly) {
                     url = '/api/v1/components/vulnerable';
                     if (minSeverity) params.append('min_severity', minSeverity);
+                    if (analysisIdFilter) params.append('analysis_id', analysisIdFilter);
                 } else {
                     url = '/api/v1/components/search';
-                    params.append('q', query);
+                    if (query) params.append('q', query);
+                    if (analysisIdFilter) params.append('analysis_id', analysisIdFilter);
                 }
                 
                 params.append('limit', '50');
