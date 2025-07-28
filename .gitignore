@@ -148,5 +148,12 @@ debug-agent/
 # Examples directory - keep local only
 examples/
 
+# Vulnerability databases - exclude from git
+.cache/grype/
+**/.cache/grype/
+**/vulnerability.db
+*.db
+grype-db/
+
 # Keep empty directories
 !.gitkeep

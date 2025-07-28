@@ -107,6 +107,23 @@ graph TB
 
 ## 🚀 Quick Start
 
+### Vulnerability Database Setup
+
+**Important**: Update the vulnerability database before first use:
+
+```bash
+# Using the provided script (recommended)
+./scripts/update_vuln_db.sh
+
+# Or manually with Docker
+docker-compose -f docker-compose.dev.yml exec sbom-platform grype db update
+
+# Or if Grype is installed locally
+grype db update
+```
+
+> **Note**: The vulnerability database (~500MB) is not included in the repository and must be downloaded separately. It contains the latest CVE data for accurate vulnerability detection.
+
 ### Using Docker (Recommended)
 
 1. **Clone and start Perseus:**
