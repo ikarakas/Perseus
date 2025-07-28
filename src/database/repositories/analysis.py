@@ -82,21 +82,36 @@ class AnalysisRepository(BaseRepository[Analysis]):
     
     def get_vulnerability_summary(self) -> Dict[str, Any]:
         """Get summary of vulnerabilities across all analyses"""
+        # Get analysis statistics
         result = self.session.query(
             func.count(Analysis.id).label('total_analyses'),
-            func.sum(Analysis.vulnerability_count).label('total_vulnerabilities'),
-            func.sum(Analysis.critical_vulnerability_count).label('total_critical'),
-            func.sum(Analysis.high_vulnerability_count).label('total_high'),
+            func.sum(Analysis.vulnerability_count).label('total_scan_findings'),
             func.avg(Analysis.vulnerability_count).label('avg_vulnerabilities_per_analysis')
         ).filter(
             Analysis.status == AnalysisStatus.COMPLETED
         ).first()
         
+        # Get actual unique vulnerability counts from vulnerability table
+        from ..models import Vulnerability, VulnerabilitySeverity
+        
+        # Total unique vulnerabilities
+        total_unique_vulns = self.session.query(func.count(Vulnerability.id)).scalar() or 0
+        
+        # Count by severity
+        severity_counts = dict(
+            self.session.query(
+                Vulnerability.severity, func.count(Vulnerability.id)
+            ).group_by(Vulnerability.severity).all()
+        )
+        
         return {
             'total_analyses': result.total_analyses or 0,
-            'total_vulnerabilities': int(result.total_vulnerabilities or 0),
-            'total_critical': int(result.total_critical or 0),
-            'total_high': int(result.total_high or 0),
+            'total_vulnerabilities': total_unique_vulns,  # Unique vulnerabilities
+            'total_scan_findings': int(result.total_scan_findings or 0),  # Raw scan count
+            'total_critical': severity_counts.get(VulnerabilitySeverity.CRITICAL, 0),
+            'total_high': severity_counts.get(VulnerabilitySeverity.HIGH, 0),
+            'total_medium': severity_counts.get(VulnerabilitySeverity.MEDIUM, 0),
+            'total_low': severity_counts.get(VulnerabilitySeverity.LOW, 0),
             'avg_vulnerabilities_per_analysis': float(result.avg_vulnerabilities_per_analysis or 0)
         }
     

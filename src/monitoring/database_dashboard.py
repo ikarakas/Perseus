@@ -546,11 +546,19 @@ class DatabaseDashboard:
                 
                 logger.critical(f"NUCLEAR PURGE COMPLETED - Deleted: {counts}")
                 
+                # Add warning about persistent volumes
+                volume_warning = {
+                    "warning": "Data may persist in Docker volumes",
+                    "solution": "To completely remove all data including Docker volumes, run: docker compose down -v && docker compose up -d",
+                    "volumes_affected": ["postgres_data", "telemetry_data", "logs"]
+                }
+                
                 return {
                     "message": "NUCLEAR PURGE COMPLETED - ALL DATA DESTROYED",
                     "purged": counts,
                     "files_cleaned": file_cleanup_count,
-                    "timestamp": datetime.utcnow()
+                    "timestamp": datetime.utcnow(),
+                    "volume_notice": volume_warning
                 }
                 
             except Exception as e:
@@ -887,8 +895,16 @@ class DatabaseDashboard:
                     <div class="metric-value" id="high-vulns">-</div>
                     <div class="metric-label">High</div>
                 </div>
+                <div class="severity-item medium">
+                    <div class="metric-value" id="medium-vulns">-</div>
+                    <div class="metric-label">Medium</div>
+                </div>
+                <div class="severity-item low">
+                    <div class="metric-value" id="low-vulns">-</div>
+                    <div class="metric-label">Low</div>
+                </div>
             </div>
-            <div>Total Vulnerabilities: <span id="total-vulns">-</span></div>
+            <div>Total Unique Vulnerabilities: <span id="total-vulns">-</span></div>
         </div>
         
         <!-- Component Statistics -->
@@ -1142,8 +1158,10 @@ class DatabaseDashboard:
             
             // Vulnerability Summary
             const vulnSummary = data.vulnerability_summary;
-            document.getElementById('critical-vulns').textContent = vulnSummary.total_critical;
-            document.getElementById('high-vulns').textContent = vulnSummary.total_high;
+            document.getElementById('critical-vulns').textContent = vulnSummary.total_critical || 0;
+            document.getElementById('high-vulns').textContent = vulnSummary.total_high || 0;
+            document.getElementById('medium-vulns').textContent = vulnSummary.total_medium || 0;
+            document.getElementById('low-vulns').textContent = vulnSummary.total_low || 0;
             document.getElementById('total-vulns').textContent = vulnSummary.total_vulnerabilities;
             
             // Component Statistics
@@ -2360,6 +2378,19 @@ class DatabaseDashboard:
                             <li>🏗️ Builds: <strong>${result.purged.builds}</strong></li>
                             <li>📁 Files Cleaned: <strong>${result.files_cleaned}</strong></li>
                         </ul>
+                    </div>
+                    <div style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                        <h4 style="color: #856404; margin-top: 0;">⚠️ Important: Docker Volume Persistence</h4>
+                        <p style="color: #856404; margin: 0; font-size: 14px;">
+                            <strong>Database tables have been purged</strong>, but Docker volumes may still contain data. 
+                            If you rebuild containers and see old data, run:
+                        </p>
+                        <div style="background: #2c3e50; color: #ecf0f1; padding: 10px; border-radius: 4px; margin: 10px 0; font-family: monospace; font-size: 14px;">
+                            docker compose down -v && docker compose up -d
+                        </div>
+                        <p style="color: #856404; margin: 0; font-size: 12px;">
+                            This will remove ALL Docker volumes including: postgres_data, telemetry_data, logs
+                        </p>
                     </div>
                     <p style="font-size: 16px; margin: 20px 0;">
                         The database has been completely wiped. The system will now restart with a clean state.

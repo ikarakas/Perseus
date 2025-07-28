@@ -178,10 +178,25 @@ class MonitoringDashboard:
                                       border-radius: 25px; 
                                       font-weight: bold; 
                                       box-shadow: 0 4px 15px rgba(79, 209, 199, 0.3);
-                                      transition: transform 0.2s, box-shadow 0.2s;"
+                                      transition: transform 0.2s, box-shadow 0.2s;
+                                      margin-right: 15px;"
                                onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(79, 209, 199, 0.4)'"
                                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 15px rgba(79, 209, 199, 0.3)'">
                                 🔗 API Reference & Links
+                            </a>
+                            <a href="/vulnerability-details" 
+                               style="display: inline-block; 
+                                      background: linear-gradient(45deg, #e74c3c, #c0392b); 
+                                      color: white; 
+                                      padding: 12px 25px; 
+                                      text-decoration: none; 
+                                      border-radius: 25px; 
+                                      font-weight: bold; 
+                                      box-shadow: 0 4px 15px rgba(231, 76, 60, 0.3);
+                                      transition: transform 0.2s, box-shadow 0.2s;"
+                               onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(231, 76, 60, 0.4)'"
+                               onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 15px rgba(231, 76, 60, 0.3)'">
+                                🛡️ Vulnerability Details
                             </a>
                         </div>
                     </div>
@@ -497,28 +512,46 @@ class MonitoringDashboard:
                                 <p><strong>Analysis ID:</strong> ${{analysisId}}</p>
                             `;
                             
-                            // Add vulnerability information if available
-                            if (results.metadata && results.metadata.vulnerability_scan_performed) {{
-                                const totalVulns = results.metadata.total_vulnerabilities || 0;
-                                const vulnComponents = results.metadata.vulnerable_components || 0;
-                                const scanDate = results.metadata.vulnerability_scan_date;
-                                
-                                resultsHtml += `
-                                    <div style="background: #f8f9fa; padding: 10px; border-radius: 4px; margin: 10px 0; border-left: 4px solid #3498db;">
-                                        <h5>🔒 Vulnerability Scan Results</h5>
-                                        <p><strong>Total Vulnerabilities:</strong> ${{totalVulns}}</p>
-                                        <p><strong>Vulnerable Components:</strong> ${{vulnComponents}}</p>
-                                        <p><strong>Scan Date:</strong> ${{scanDate ? new Date(scanDate).toLocaleString(undefined, {{timeZoneName: 'short'}}) : 'Unknown'}}</p>
-                                    </div>
-                                `;
-                            }} else if (results.metadata && results.metadata.vulnerability_scan_performed === false) {{
-                                resultsHtml += `
-                                    <div style="background: #fff3cd; padding: 10px; border-radius: 4px; margin: 10px 0; border-left: 4px solid #ffc107;">
-                                        <h5>⚠️ Vulnerability Scan</h5>
-                                        <p>Vulnerability scan failed or was disabled for this analysis.</p>
-                                    </div>
-                                `;
-                            }}
+                            // Check for vulnerability data using the detailed endpoint
+                            // This approach is more reliable than metadata
+                            resultsHtml += `
+                                <div id="vuln-loading-${{analysisId}}" style="background: #f8f9fa; padding: 10px; border-radius: 4px; margin: 10px 0; border-left: 4px solid #3498db;">
+                                    <h5>🔒 Vulnerability Scan Results</h5>
+                                    <p>Loading vulnerability information...</p>
+                                </div>
+                            `;
+                            
+                            // Fetch accurate vulnerability count from detailed endpoint
+                            fetch(`/api/v1/vulnerabilities/detailed/${{analysisId}}`)
+                                .then(response => response.json())
+                                .then(vulnData => {{
+                                    const vulnDiv = document.getElementById(`vuln-loading-${{analysisId}}`);
+                                    if (vulnDiv) {{
+                                        const totalVulns = vulnData.total_count || 0;
+                                        const vulnComponents = results.components ? results.components.filter(c => c.vulnerability_count > 0).length : 0;
+                                        const scanDate = results.metadata && results.metadata.vulnerability_scan_date ? 
+                                            new Date(results.metadata.vulnerability_scan_date).toLocaleString(undefined, {{timeZoneName: 'short'}}) : 
+                                            new Date().toLocaleString(undefined, {{timeZoneName: 'short'}});
+                                        
+                                        vulnDiv.innerHTML = `
+                                            <h5>🔒 Vulnerability Scan Results</h5>
+                                            <p><strong>Total Vulnerabilities:</strong> ${{totalVulns}}</p>
+                                            <p><strong>Vulnerable Components:</strong> ${{vulnComponents}}</p>
+                                            <p><strong>Scan Date:</strong> ${{scanDate}}</p>
+                                            <p><a href="/vulnerability-details?analysis_id=${{analysisId}}" target="_blank" style="color: #3498db; text-decoration: none;">🔍 View Detailed Vulnerability Information</a></p>
+                                        `;
+                                    }}
+                                }})
+                                .catch(error => {{
+                                    const vulnDiv = document.getElementById(`vuln-loading-${{analysisId}}`);
+                                    if (vulnDiv) {{
+                                        vulnDiv.innerHTML = `
+                                            <h5>⚠️ Vulnerability Scan</h5>
+                                            <p>Could not load vulnerability information. The analysis may not include vulnerability scanning.</p>
+                                            <p><a href="/vulnerability-details?analysis_id=${{analysisId}}" target="_blank" style="color: #17a2b8; text-decoration: none;">🔍 Try Detailed Vulnerability Search</a></p>
+                                        `;
+                                    }}
+                                }});
                             
                             
                             // Add OS-specific information if available

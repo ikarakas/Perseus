@@ -34,11 +34,22 @@ class BinaryAnalyzer(BaseAnalyzer):
             # Parse location
             binary_path = self._parse_location(location)
             
+            # Validate path exists
+            if not os.path.exists(binary_path):
+                error_msg = f"Path does not exist: {binary_path}"
+                if location != binary_path:
+                    error_msg += f" (normalized from: {location})"
+                raise FileNotFoundError(error_msg)
+            
             # Determine binary type
             if os.path.isfile(binary_path):
                 binary_files = [binary_path]
-            else:
+            elif os.path.isdir(binary_path):
                 binary_files = self._find_binary_files(binary_path)
+                if not binary_files:
+                    logger.warning(f"No binary files found in directory: {binary_path}")
+            else:
+                raise ValueError(f"Path is neither a file nor a directory: {binary_path}")
             
             for binary_file in binary_files:
                 try:
@@ -87,12 +98,7 @@ class BinaryAnalyzer(BaseAnalyzer):
                 metadata={"analyzer_type": "binary"}
             )
     
-    def _parse_location(self, location: str) -> str:
-        """Parse location string to get file path"""
-        if location.startswith('file://'):
-            return location[7:]
-        else:
-            return location
+    # Note: _parse_location is now inherited from BaseAnalyzer with improved path normalization
     
     def _find_binary_files(self, directory: str) -> List[str]:
         """Find binary files in directory"""

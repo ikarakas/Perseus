@@ -7,6 +7,7 @@ from fastapi import FastAPI, HTTPException, BackgroundTasks, Request, Depends
 from sqlalchemy.orm import Session
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
 import uuid
@@ -22,6 +23,7 @@ from ..monitoring.dashboard import MonitoringDashboard
 from ..monitoring.database_dashboard import DatabaseDashboard
 from ..monitoring.component_search_ui import setup_component_search_routes
 from ..monitoring.api_reference import setup_api_reference_routes
+from ..monitoring.vulnerability_details_ui import get_vulnerability_details_ui
 from ..telemetry.api import router as telemetry_router, init_telemetry_api
 from ..telemetry.storage import TelemetryStorage
 from .cicd import router as cicd_router
@@ -124,6 +126,145 @@ dashboard.setup_routes(app)
 database_dashboard.setup_routes(app)
 setup_component_search_routes(app)
 setup_api_reference_routes(app)
+
+# Add vulnerability details route
+@app.get("/vulnerability-details", response_class=HTMLResponse)
+async def vulnerability_details_page():
+    """Vulnerability details UI with enhanced CVE information"""
+    return get_vulnerability_details_ui()
+
+@app.get("/api/v1/vulnerabilities/detailed/{analysis_id}")
+async def get_detailed_vulnerability_scan(analysis_id: str, db: Session = Depends(get_db_session)):
+    """Get detailed vulnerability scan results with enhanced CVE information"""
+    print(f"DEBUG: Starting detailed vulnerability scan for analysis {analysis_id}")
+    try:
+        from ..database.repositories.vulnerability import VulnerabilityRepository
+        
+        vuln_repo = VulnerabilityRepository(db)
+        print(f"DEBUG: Created VulnerabilityRepository for analysis {analysis_id}")
+        detailed_vulnerabilities = vuln_repo.get_vulnerabilities_by_analysis(analysis_id)
+        print(f"DEBUG: Found {len(detailed_vulnerabilities)} vulnerabilities via relationships for analysis {analysis_id}")
+        
+        # If no vulnerabilities found via relationships, try legacy approach
+        if not detailed_vulnerabilities:
+            logger.info(f"No vulnerabilities found via relationships for {analysis_id}, trying legacy approach")
+            try:
+                # Get vulnerability data using the existing workflow engine
+                results = workflow_engine.get_analysis_results(analysis_id)
+                if not results:
+                    return {
+                        "analysis_id": analysis_id,
+                        "vulnerabilities": [],
+                        "total_count": 0,
+                        "message": "Analysis not found"
+                    }
+                
+                # Extract legacy vulnerability data from results
+                legacy_results = {
+                    "vulnerable_components": []
+                }
+                
+                for component in results.components:
+                    if component.vulnerabilities and len(component.vulnerabilities) > 0:
+                        component_data = {
+                            "component_name": component.name,
+                            "component_version": component.version,
+                            "purl": component.purl,
+                            "vulnerabilities": component.vulnerabilities
+                        }
+                        legacy_results["vulnerable_components"].append(component_data)
+                
+                # Convert legacy format to enhanced format
+                enhanced_vulnerabilities = []
+                for component in legacy_results.get("vulnerable_components", []):
+                    for vuln in component.get("vulnerabilities", []):
+                        enhanced_vuln = {
+                            "id": vuln.get("id", "Unknown"),
+                            "title": vuln.get("title", ""),
+                            "description": vuln.get("description", ""),
+                            "severity": vuln.get("severity", "unknown"),
+                            "published": vuln.get("published"),
+                            "updated": vuln.get("updated"),
+                            "references": vuln.get("references", []),
+                            "fixed_versions": vuln.get("fixed_versions", []),
+                            "affected_versions": vuln.get("affected_versions", []),
+                            "cvss": {
+                                "base_score": vuln.get("cvss_score"),
+                                "severity": vuln.get("severity", "unknown"),
+                                "vector_string": vuln.get("cvss_vector")
+                            } if vuln.get("cvss_score") else None,
+                            "cwe_ids": vuln.get("cwe_ids", []),
+                            "component_info": {
+                                "name": component.get("component_name"),
+                                "version": component.get("component_version"),
+                                "purl": component.get("purl")
+                            }
+                        }
+                        enhanced_vulnerabilities.append(enhanced_vuln)
+                
+                return {
+                    "analysis_id": analysis_id,
+                    "vulnerabilities": enhanced_vulnerabilities,
+                    "total_vulnerabilities": len(enhanced_vulnerabilities),
+                    "data_source": "legacy_scan_results"
+                }
+            except Exception as legacy_error:
+                logger.error(f"Legacy approach also failed: {legacy_error}")
+                return {
+                    "analysis_id": analysis_id,
+                    "vulnerabilities": [],
+                    "total_vulnerabilities": 0,
+                    "error": "No vulnerability data available via any method"
+                }
+        
+        detailed_vulnerabilities = detailed_vulnerabilities
+        
+        # Transform to the enhanced format
+        enhanced_vulnerabilities = []
+        for vuln in detailed_vulnerabilities:
+            enhanced_vuln = {
+                "id": vuln.vulnerability_id,
+                "title": vuln.title or "",
+                "description": vuln.description or "",
+                "severity": vuln.severity.value if vuln.severity else "unknown",
+                "published": vuln.published_date.isoformat() if vuln.published_date else None,
+                "updated": vuln.modified_date.isoformat() if vuln.modified_date else None,
+                "references": vuln.references if vuln.references else [],
+                "fixed_versions": vuln.fixed_versions if vuln.fixed_versions else [],
+                "affected_versions": vuln.affected_versions if vuln.affected_versions else [],
+                "cvss": {
+                    "base_score": vuln.cvss_score,
+                    "vector_string": vuln.cvss_vector,
+                    "version": "3.1",  # Default version
+                    "severity": vuln.severity.value if vuln.severity else "unknown"
+                } if vuln.cvss_score else None,
+                "cwe_ids": vuln.cwe_ids if vuln.cwe_ids else [],
+                "aliases": [],
+                "exploit_info": None,
+                "patches": [{"version": v, "release_date": None, "url": None} for v in (vuln.fixed_versions or [])],
+                "advisories": [],
+                "affected_platforms": [],
+                "affected_products": [],
+                "mitigation": None,
+                "technical_details": None
+            }
+            enhanced_vulnerabilities.append(enhanced_vuln)
+        
+        return {
+            "analysis_id": analysis_id,
+            "vulnerabilities": enhanced_vulnerabilities,
+            "total_count": len(enhanced_vulnerabilities),
+            "severity_counts": {
+                "critical": len([v for v in enhanced_vulnerabilities if v["severity"] == "critical"]),
+                "high": len([v for v in enhanced_vulnerabilities if v["severity"] == "high"]),
+                "medium": len([v for v in enhanced_vulnerabilities if v["severity"] == "medium"]),
+                "low": len([v for v in enhanced_vulnerabilities if v["severity"] == "low"])
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting detailed vulnerability scan: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/")
 async def root():
@@ -794,21 +935,28 @@ async def get_sbom_statistics(db: Session = Depends(get_db_session)):
 async def list_vulnerabilities(
     severity: Optional[str] = None,
     search: Optional[str] = None,
-    limit: int = 50,
+    limit: int = 100,
+    offset: int = 0,
     db: Session = Depends(get_db_session)
 ):
     """List vulnerabilities with optional filtering"""
     try:
         vuln_repo = VulnerabilityRepository(db)
         
+        # Get the vulnerabilities based on filters
         if search:
-            vulnerabilities = vuln_repo.search_vulnerabilities(search, limit=limit)
+            vulnerabilities = vuln_repo.search_vulnerabilities(search, limit=limit, offset=offset)
+            total_count = vuln_repo.count_search_vulnerabilities(search)
         elif severity:
             from ..database.models import VulnerabilitySeverity
             severity_enum = VulnerabilitySeverity(severity.lower())
-            vulnerabilities = vuln_repo.get_by_severity(severity_enum, limit=limit)
+            vulnerabilities = vuln_repo.get_by_severity(severity_enum, limit=limit, offset=offset)
+            total_count = vuln_repo.count_by_severity(severity_enum)
         else:
-            vulnerabilities = vuln_repo.get_all(limit=limit)
+            vulnerabilities = vuln_repo.get_all(limit=limit, offset=offset)
+            # Get total count from statistics
+            stats = vuln_repo.get_vulnerability_statistics()
+            total_count = stats['total_vulnerabilities']
         
         return {
             "vulnerabilities": [
@@ -822,7 +970,11 @@ async def list_vulnerabilities(
                 }
                 for v in vulnerabilities
             ],
-            "total": len(vulnerabilities)
+            "total": total_count,
+            "returned": len(vulnerabilities),
+            "limit": limit,
+            "offset": offset,
+            "has_more": offset + len(vulnerabilities) < total_count
         }
     except Exception as e:
         logger.error(f"Error listing vulnerabilities: {e}")

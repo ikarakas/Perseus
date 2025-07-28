@@ -85,15 +85,7 @@ class JavaSourceAnalyzer(BaseAnalyzer):
                 metadata={"analyzer_type": "java_source"}
             )
     
-    def _parse_location(self, location: str) -> str:
-        """Parse location string to get file path"""
-        if location.startswith('file://'):
-            return location[7:]
-        elif location.startswith('git://'):
-            # For git URLs, we'd need to clone first
-            raise NotImplementedError("Git repository cloning not implemented")
-        else:
-            return location
+    # Note: _parse_location is now inherited from BaseAnalyzer with improved path normalization
     
     def _find_build_files(self, source_path: str) -> Dict[str, List[str]]:
         """Find Java build configuration files"""

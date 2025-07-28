@@ -235,6 +235,18 @@ class WorkflowEngine:
                 if results.components:
                     self._store_components_in_db(analysis_id, results.components, db_session)
                 
+                # Link vulnerabilities to components if vulnerability scanning was performed
+                if hasattr(results, 'vulnerability_summary') and results.vulnerability_summary:
+                    linked_count = self._link_vulnerabilities_to_components(analysis_id, db_session)
+                    # Update metadata with correct vulnerability count
+                    if linked_count is not None and hasattr(results, 'metadata'):
+                        results.metadata.update({
+                            'total_vulnerabilities': linked_count,
+                            'raw_scan_vulnerabilities': results.metadata.get('total_vulnerabilities', 0)
+                        })
+                        # Store updated results
+                        self.storage.store_analysis_result(analysis_id, results)
+                
                 # Update analysis completion
                 self._update_analysis_completion(analysis_id, results, db_session)
                 
@@ -328,6 +340,18 @@ class WorkflowEngine:
                 # Store components
                 if results.components:
                     self._store_components_in_db(analysis_id, results.components, db_session)
+                
+                # Link vulnerabilities to components if vulnerability scanning was performed
+                if hasattr(results, 'vulnerability_summary') and results.vulnerability_summary:
+                    linked_count = self._link_vulnerabilities_to_components(analysis_id, db_session)
+                    # Update metadata with correct vulnerability count
+                    if linked_count is not None and hasattr(results, 'metadata'):
+                        results.metadata.update({
+                            'total_vulnerabilities': linked_count,
+                            'raw_scan_vulnerabilities': results.metadata.get('total_vulnerabilities', 0)
+                        })
+                        # Store updated results
+                        self.storage.store_analysis_result(analysis_id, results)
                 
                 # Update analysis completion
                 self._update_analysis_completion(analysis_id, results, db_session)
@@ -553,6 +577,18 @@ class WorkflowEngine:
                 if results.components:
                     self._store_components_in_db(analysis_id, results.components, db_session)
                 
+                # Link vulnerabilities to components if vulnerability scanning was performed
+                if hasattr(results, 'vulnerability_summary') and results.vulnerability_summary:
+                    linked_count = self._link_vulnerabilities_to_components(analysis_id, db_session)
+                    # Update metadata with correct vulnerability count
+                    if linked_count is not None and hasattr(results, 'metadata'):
+                        results.metadata.update({
+                            'total_vulnerabilities': linked_count,
+                            'raw_scan_vulnerabilities': results.metadata.get('total_vulnerabilities', 0)
+                        })
+                        # Store updated results
+                        self.storage.store_analysis_result(analysis_id, results)
+                
                 # Update analysis completion
                 self._update_analysis_completion(analysis_id, results, db_session)
                 
@@ -646,6 +682,18 @@ class WorkflowEngine:
                 # Store components
                 if results.components:
                     self._store_components_in_db(analysis_id, results.components, db_session)
+                
+                # Link vulnerabilities to components if vulnerability scanning was performed
+                if hasattr(results, 'vulnerability_summary') and results.vulnerability_summary:
+                    linked_count = self._link_vulnerabilities_to_components(analysis_id, db_session)
+                    # Update metadata with correct vulnerability count
+                    if linked_count is not None and hasattr(results, 'metadata'):
+                        results.metadata.update({
+                            'total_vulnerabilities': linked_count,
+                            'raw_scan_vulnerabilities': results.metadata.get('total_vulnerabilities', 0)
+                        })
+                        # Store updated results
+                        self.storage.store_analysis_result(analysis_id, results)
                 
                 # Update analysis completion
                 self._update_analysis_completion(analysis_id, results, db_session)
@@ -937,6 +985,83 @@ class WorkflowEngine:
         except Exception as e:
             logger.error(f"Failed to store vulnerability scan in database: {e}")
             raise
+    
+    def _link_vulnerabilities_to_components(self, analysis_id: str, db_session: Session) -> Optional[int]:
+        """Link stored vulnerabilities to components after both are in database"""
+        try:
+            analysis_repo = AnalysisRepository(db_session)
+            comp_repo = ComponentRepository(db_session)
+            vuln_repo = VulnerabilityRepository(db_session)
+            
+            analysis = analysis_repo.get_by_analysis_id(analysis_id)
+            if not analysis:
+                logger.error(f"Analysis {analysis_id} not found for vulnerability linking")
+                return
+            
+            # Get the last vulnerability scan for this analysis
+            from ..database.repositories import VulnerabilityScanRepository
+            scan_repo = VulnerabilityScanRepository(db_session)
+            scans = scan_repo.get_by_analysis_id(analysis.id)
+            
+            if not scans:
+                logger.warning(f"No vulnerability scans found for analysis {analysis_id}")
+                return
+            
+            latest_scan = scans[0]  # get_by_analysis_id returns results ordered by started_at desc
+            scan_results = latest_scan.raw_results.get('scan_results', [])
+            
+            logger.info(f"Linking vulnerabilities from {len(scan_results)} scan results to components")
+            
+            total_vulns_in_scan = 0
+            total_linked = 0
+            components_with_vulns = 0
+            
+            for scan_result in scan_results:
+                component_name = scan_result.get('component_name')
+                vulnerabilities = scan_result.get('vulnerabilities', [])
+                
+                if vulnerabilities:
+                    components_with_vulns += 1
+                    total_vulns_in_scan += len(vulnerabilities)
+                    logger.debug(f"Component {component_name} has {len(vulnerabilities)} vulnerabilities in scan")
+                
+                # Find the corresponding component in the database
+                component = comp_repo.get_by_analysis_and_name(analysis.id, component_name)
+                if not component:
+                    if vulnerabilities:  # Only warn if component has vulnerabilities
+                        logger.warning(f"Component {component_name} with {len(vulnerabilities)} vulnerabilities not found in database")
+                    continue
+                
+                for vuln_data in vulnerabilities:
+                    vuln_id = vuln_data.get('id') if isinstance(vuln_data, dict) else getattr(vuln_data, 'id', None)
+                    if not vuln_id:
+                        logger.warning(f"Vulnerability data missing ID: {vuln_data}")
+                        continue
+                        
+                    # Find the vulnerability in the database
+                    vulnerability = vuln_repo.get_by_vulnerability_id(vuln_id)
+                    if not vulnerability:
+                        logger.warning(f"Vulnerability {vuln_id} not found in database")
+                        continue
+                        
+                    if vulnerability and component:
+                        try:
+                            # Add the vulnerability to the component's vulnerabilities relationship
+                            if vulnerability not in component.vulnerabilities:
+                                component.vulnerabilities.append(vulnerability)
+                                total_linked += 1
+                                logger.debug(f"Linked vulnerability {vuln_id} to component {component.name}")
+                        except Exception as link_error:
+                            logger.error(f"Failed to link vulnerability {vuln_id} to component {component.name}: {link_error}")
+            
+            logger.info(f"Vulnerability linking summary: {total_vulns_in_scan} vulnerabilities in scan, {total_linked} successfully linked, {components_with_vulns} components had vulnerabilities")
+            
+            logger.info(f"Vulnerability linking completed for analysis {analysis_id}")
+            return total_linked
+            
+        except Exception as e:
+            logger.error(f"Failed to link vulnerabilities to components: {e}")
+            return None
     
     def validate_sbom(self, sbom_data: Dict[str, Any]) -> Dict[str, Any]:
         """Validate SBOM format"""
