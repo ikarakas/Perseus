@@ -330,13 +330,42 @@ async def get_analysis_status(analysis_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/analyze/{analysis_id}/results")
-async def get_analysis_results(analysis_id: str):
-    """Get analysis results"""
+async def get_analysis_results(analysis_id: str, db: Session = Depends(get_db_session)):
+    """Get analysis results with accurate component count from database"""
     try:
         results = workflow_engine.get_analysis_results(analysis_id)
         if not results:
             raise HTTPException(status_code=404, detail="Analysis results not found")
-        return results
+        
+        # Get actual component count from database instead of cached results
+        from src.database.repositories.component import ComponentRepository
+        component_repo = ComponentRepository(db)
+        
+        # Search for components by analysis ID to get actual count
+        actual_components = component_repo.search_by_analysis_id(analysis_id, limit=1000)
+        
+        # Convert results to dict for modification
+        results_dict = results.dict() if hasattr(results, 'dict') else results
+        if isinstance(results_dict, dict) and 'components' in results_dict:
+            # Replace the components list with the actual database components
+            # Convert Component objects to dictionaries
+            components_data = []
+            for comp in actual_components:
+                comp_dict = {
+                    'id': str(comp.id),
+                    'name': comp.name,
+                    'version': comp.version,
+                    'type': comp.type.value if comp.type else None,
+                    'purl': comp.purl,
+                    'vulnerability_count': comp.vulnerability_count,
+                    'critical_vulnerabilities': comp.critical_vulnerabilities,
+                    'high_vulnerabilities': comp.high_vulnerabilities
+                }
+                components_data.append(comp_dict)
+            
+            results_dict['components'] = components_data
+        
+        return results_dict
     except Exception as e:
         logger.error(f"Error getting analysis results: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -943,20 +972,18 @@ async def list_vulnerabilities(
     try:
         vuln_repo = VulnerabilityRepository(db)
         
-        # Get the vulnerabilities based on filters
+        # Get the active vulnerabilities based on filters
         if search:
-            vulnerabilities = vuln_repo.search_vulnerabilities(search, limit=limit, offset=offset)
-            total_count = vuln_repo.count_search_vulnerabilities(search)
+            vulnerabilities = vuln_repo.search_active_vulnerabilities(search, limit=limit, offset=offset)
+            total_count = vuln_repo.count_search_active_vulnerabilities(search)
         elif severity:
             from ..database.models import VulnerabilitySeverity
             severity_enum = VulnerabilitySeverity(severity.lower())
-            vulnerabilities = vuln_repo.get_by_severity(severity_enum, limit=limit, offset=offset)
-            total_count = vuln_repo.count_by_severity(severity_enum)
+            vulnerabilities = vuln_repo.get_active_vulnerabilities_by_severity(severity_enum, limit=limit, offset=offset)
+            total_count = vuln_repo.count_active_vulnerabilities_by_severity(severity_enum)
         else:
-            vulnerabilities = vuln_repo.get_all(limit=limit, offset=offset)
-            # Get total count from statistics
-            stats = vuln_repo.get_vulnerability_statistics()
-            total_count = stats['total_vulnerabilities']
+            vulnerabilities = vuln_repo.get_active_vulnerabilities(limit=limit, offset=offset)
+            total_count = vuln_repo.count_active_vulnerabilities()
         
         return {
             "vulnerabilities": [

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # © NATO Airborne Early Warning and Control Force - Licensed under NFCL v1.0
 """
-Complete nuclear purge with volume reset option
+Complete system purge with volume reset option
 """
 
 import requests
@@ -10,9 +10,9 @@ import sys
 import time
 import json
 
-def nuclear_purge_api():
-    """Call the API nuclear purge endpoint"""
-    print("🔥 Executing API nuclear purge...")
+def complete_purge_api():
+    """Call the API complete purge endpoint"""
+    print("🔥 Executing API complete purge...")
     try:
         response = requests.delete(
             'http://localhost:8000/api/v1/dashboard/purge-everything?confirm=DESTROY-ALL-DATA',
@@ -69,18 +69,22 @@ def volume_reset():
         return False
 
 def main():
-    print("🚨 COMPLETE NUCLEAR PURGE")
+    print("🚨 COMPLETE SYSTEM PURGE")
     print("=========================")
     print("\nOptions:")
     print("  1. Database purge only (keeps Docker volumes)")
     print("  2. Complete reset (database + Docker volumes)")
     print("")
     
-    choice = input("Select option (1 or 2): ").strip()
+    try:
+        choice = input("Select option (1 or 2): ").strip()
+    except (EOFError, KeyboardInterrupt):
+        print("\n❌ No input available or interrupted. Using default option 2 (complete reset)")
+        choice = "2"
     
     if choice == "1":
         print("\n🎯 Database purge only...")
-        success = nuclear_purge_api()
+        success = complete_purge_api()
         if success:
             print("\n🎉 Database purge completed!")
             print("Note: Docker volumes are preserved. Data will persist across container restarts.")
@@ -89,10 +93,15 @@ def main():
         print("\n🎯 Complete reset (database + volumes)...")
         print("⚠️  This will restart Docker containers!")
         
-        confirm = input("Are you sure? (type 'yes'): ").strip()
+        try:
+            confirm = input("Are you sure? (type 'yes'): ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print("\n❌ No input available. Auto-confirming complete reset...")
+            confirm = "yes"
+        
         if confirm.lower() == 'yes':
             # First try API purge (optional, since volumes will be wiped anyway)
-            nuclear_purge_api()
+            complete_purge_api()
             
             # Then reset volumes
             success = volume_reset()

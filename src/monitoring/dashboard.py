@@ -512,6 +512,17 @@ class MonitoringDashboard:
                                 <p><strong>Analysis ID:</strong> ${{analysisId}}</p>
                             `;
                             
+                            // If analysis is still running, show polling message and continue checking
+                            if (status.status === 'running' || status.status === 'pending') {{
+                                resultsHtml += `<p><em>⏳ Analysis in progress... Checking for updates every 3 seconds.</em></p>`;
+                                resultsDiv.innerHTML = resultsHtml;
+                                resultsDiv.style.display = 'block';
+                                
+                                // Continue polling every 3 seconds until complete
+                                setTimeout(() => checkStatus(analysisId), 3000);
+                                return;
+                            }}
+                            
                             // Check for vulnerability data using the detailed endpoint
                             // This approach is more reliable than metadata
                             resultsHtml += `

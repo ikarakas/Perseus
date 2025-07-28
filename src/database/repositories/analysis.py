@@ -91,16 +91,24 @@ class AnalysisRepository(BaseRepository[Analysis]):
             Analysis.status == AnalysisStatus.COMPLETED
         ).first()
         
-        # Get actual unique vulnerability counts from vulnerability table
-        from ..models import Vulnerability, VulnerabilitySeverity
+        # Get actual unique vulnerability counts from vulnerabilities linked to active components
+        from ..models import Vulnerability, VulnerabilitySeverity, Component, component_vulnerabilities
         
-        # Total unique vulnerabilities
-        total_unique_vulns = self.session.query(func.count(Vulnerability.id)).scalar() or 0
+        # Only count vulnerabilities that are currently linked to components from active analyses
+        active_vulns_query = self.session.query(Vulnerability).join(
+            component_vulnerabilities
+        ).join(Component).join(Analysis).filter(
+            Analysis.status == AnalysisStatus.COMPLETED
+        )
         
-        # Count by severity
+        # Total unique active vulnerabilities
+        total_unique_vulns = active_vulns_query.distinct().count()
+        
+        # Count by severity for active vulnerabilities only
         severity_counts = dict(
-            self.session.query(
-                Vulnerability.severity, func.count(Vulnerability.id)
+            active_vulns_query.with_entities(
+                Vulnerability.severity, 
+                func.count(Vulnerability.id.distinct())
             ).group_by(Vulnerability.severity).all()
         )
         

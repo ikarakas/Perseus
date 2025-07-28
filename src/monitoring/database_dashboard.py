@@ -13,7 +13,7 @@ from typing import Dict, Any, List, Optional
 from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
+from sqlalchemy import or_, func
 
 from ..database import get_db_session
 from ..database.models import SBOM, Analysis
@@ -61,9 +61,6 @@ class DatabaseDashboard:
                 # Get top vulnerable components
                 top_vulnerable = component_repo.get_top_vulnerable_components(limit=10)
                 
-                # Get recent analyses
-                recent_analyses = analysis_repo.get_recent_analyses(limit=10)
-                
                 return {
                     "timestamp": datetime.utcnow().isoformat(),
                     "analysis_statistics": analysis_stats,
@@ -72,77 +69,11 @@ class DatabaseDashboard:
                     "sbom_statistics": sbom_stats,
                     "vulnerability_statistics": vuln_stats,
                     "scan_statistics": scan_stats,
-                    "top_vulnerable_components": top_vulnerable,
-                    "recent_analyses": [
-                        {
-                            "analysis_id": a.analysis_id,
-                            "status": a.status.value,
-                            "analysis_type": a.analysis_type,
-                            "component_count": a.component_count,
-                            "vulnerability_count": a.vulnerability_count,
-                            "created_at": a.created_at.isoformat() if a.created_at else None
-                        }
-                        for a in recent_analyses
-                    ]
+                    "top_vulnerable_components": top_vulnerable
                 }
             except Exception as e:
                 raise HTTPException(status_code=500, detail=str(e))
         
-        @app.get("/api/v1/dashboard/trends")
-        async def get_vulnerability_trends(
-            days: int = 30, 
-            db: Session = Depends(get_db_session)
-        ):
-            """Get vulnerability trends over time"""
-            try:
-                analysis_repo = AnalysisRepository(db)
-                
-                # Get analyses from the last N days
-                since = datetime.utcnow() - timedelta(days=days)
-                analyses = db.query(analysis_repo.model).filter(
-                    analysis_repo.model.created_at >= since
-                ).order_by(analysis_repo.model.created_at).all()
-                
-                # Group by day
-                daily_stats = {}
-                for analysis in analyses:
-                    day = analysis.created_at.date().isoformat()
-                    if day not in daily_stats:
-                        daily_stats[day] = {
-                            'date': day,
-                            'analyses': 0,
-                            'total_vulnerabilities': 0,
-                            'critical_vulnerabilities': 0,
-                            'high_vulnerabilities': 0,
-                            'medium_vulnerabilities': 0,
-                            'low_vulnerabilities': 0,
-                            'components': 0
-                        }
-                    
-                    daily_stats[day]['analyses'] += 1
-                    daily_stats[day]['total_vulnerabilities'] += analysis.vulnerability_count or 0
-                    daily_stats[day]['critical_vulnerabilities'] += analysis.critical_vulnerability_count or 0
-                    daily_stats[day]['high_vulnerabilities'] += analysis.high_vulnerability_count or 0
-                    daily_stats[day]['components'] += analysis.component_count or 0
-                    
-                    # Calculate medium/low as the difference
-                    total = analysis.vulnerability_count or 0
-                    critical = analysis.critical_vulnerability_count or 0
-                    high = analysis.high_vulnerability_count or 0
-                    medium_low = total - critical - high
-                    
-                    # For now, split medium/low evenly (or we could add these fields to the database)
-                    if medium_low > 0:
-                        # Assume 60% are medium, 40% are low (typical distribution)
-                        daily_stats[day]['medium_vulnerabilities'] += int(medium_low * 0.6)
-                        daily_stats[day]['low_vulnerabilities'] += medium_low - int(medium_low * 0.6)
-                
-                return {
-                    "trends": list(daily_stats.values()),
-                    "period_days": days
-                }
-            except Exception as e:
-                raise HTTPException(status_code=500, detail=str(e))
         
         @app.get("/api/v1/dashboard/sboms")
         async def get_recent_sboms(
@@ -276,13 +207,22 @@ class DatabaseDashboard:
                 # Apply pagination and ordering
                 analyses = query.order_by(analysis_repo.model.created_at.desc()).offset(offset).limit(limit).all()
                 
+                # Get actual component counts for each analysis
+                from ..database.models import Component
+                analysis_components = {}
+                for analysis in analyses:
+                    actual_count = db.query(func.count(Component.id)).filter(
+                        Component.analysis_id == analysis.id
+                    ).scalar() or 0
+                    analysis_components[analysis.analysis_id] = actual_count
+                
                 return {
                     "analyses": [
                         {
                             "analysis_id": a.analysis_id,
                             "status": a.status.value if hasattr(a.status, 'value') else str(a.status),
                             "analysis_type": a.analysis_type,
-                            "component_count": a.component_count,
+                            "component_count": analysis_components.get(a.analysis_id, 0),
                             "vulnerability_count": a.vulnerability_count,
                             "critical_vulnerability_count": a.critical_vulnerability_count,
                             "high_vulnerability_count": a.high_vulnerability_count,
@@ -457,7 +397,7 @@ class DatabaseDashboard:
             db: Session = Depends(get_db_session)
         ):
             """
-            NUCLEAR OPTION: Purge EVERYTHING from the database.
+            COMPLETE PURGE: Remove EVERYTHING from the database.
             This will delete ALL analyses, components, SBOMs, vulnerabilities, scans, etc.
             Requires confirmation string: 'DESTROY-ALL-DATA'
             """
@@ -469,7 +409,7 @@ class DatabaseDashboard:
                     detail=f"Confirmation required. Add '?confirm={CONFIRMATION_STRING}' to confirm this EXTREMELY destructive operation."
                 )
             
-            logger.critical("NUCLEAR PURGE INITIATED - DELETING ALL DATABASE CONTENT")
+            logger.critical("COMPLETE PURGE INITIATED - DELETING ALL DATABASE CONTENT")
             
             try:
                 from ..database.models import (
@@ -544,7 +484,7 @@ class DatabaseDashboard:
                 except Exception as cleanup_e:
                     logger.warning(f"File cleanup failed: {cleanup_e}")
                 
-                logger.critical(f"NUCLEAR PURGE COMPLETED - Deleted: {counts}")
+                logger.critical(f"COMPLETE PURGE COMPLETED - Deleted: {counts}")
                 
                 # Add warning about persistent volumes
                 volume_warning = {
@@ -554,7 +494,7 @@ class DatabaseDashboard:
                 }
                 
                 return {
-                    "message": "NUCLEAR PURGE COMPLETED - ALL DATA DESTROYED",
+                    "message": "COMPLETE PURGE COMPLETED - ALL DATA DESTROYED",
                     "purged": counts,
                     "files_cleaned": file_cleanup_count,
                     "timestamp": datetime.utcnow(),
@@ -930,12 +870,6 @@ class DatabaseDashboard:
             </div>
         </div>
         
-        <!-- Vulnerability Trends Chart -->
-        <div class="metric-card chart-container">
-            <h3>📊 Vulnerability Trends (30 Days)</h3>
-            <canvas id="trendsChart"></canvas>
-        </div>
-        
         <!-- Vulnerability Severity Distribution -->
         <div class="metric-card chart-container">
             <h3>🎯 Vulnerability Severity Distribution</h3>
@@ -944,16 +878,8 @@ class DatabaseDashboard:
         
         <!-- Top Vulnerable Components -->
         <div class="metric-card">
-            <h3>🎯 Top Vulnerable Components</h3>
+            <h3>🎯 Top Unique Vulnerable Components</h3>
             <div id="vulnerable-components-list" class="component-list">
-                Loading...
-            </div>
-        </div>
-        
-        <!-- Recent Analyses -->
-        <div class="metric-card">
-            <h3>⏱️ Recent Analyses</h3>
-            <div id="recent-analyses-list" class="component-list">
                 Loading...
             </div>
         </div>
@@ -1044,7 +970,7 @@ class DatabaseDashboard:
                     <strong>⚠️ EXTREME CAUTION:</strong> The following operations are IRREVERSIBLE and will permanently delete ALL data from the database.
                 </p>
                 <div style="text-align: center;">
-                    <button onclick="showNuclearPurgeConfirm()" 
+                    <button onclick="showCompletePurgeConfirm()" 
                             style="background: #ff0000; 
                                    color: white; 
                                    border: 2px solid #cc0000; 
@@ -1057,7 +983,7 @@ class DatabaseDashboard:
                                    transition: all 0.3s;"
                             onmouseover="this.style.background='#cc0000'; this.style.boxShadow='0 6px 8px rgba(255,0,0,0.5)';"
                             onmouseout="this.style.background='#ff0000'; this.style.boxShadow='0 4px 6px rgba(255,0,0,0.3)';">
-                        ☢️ NUCLEAR PURGE - DELETE EVERYTHING
+                        🔥 COMPLETE PURGE - DELETE EVERYTHING
                     </button>
                 </div>
                 <p style="color: #ff9999; margin: 1rem 0 0 0; font-size: 14px; text-align: center;">
@@ -1068,7 +994,6 @@ class DatabaseDashboard:
     </div>
 
     <script>
-        let trendsChart = null;
         let severityChart = null;
         
         // Helper function to format dates with timezone
@@ -1115,18 +1040,6 @@ class DatabaseDashboard:
             }
         }
         
-        async function fetchTrendsData() {
-            try {
-                const response = await fetch('/api/v1/dashboard/trends?days=30');
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-                return await response.json();
-            } catch (error) {
-                console.error('Error fetching trends data:', error);
-                return { trends: [] };
-            }
-        }
         
         async function fetchAllSbomsData(offset = 0, limit = 50) {
             try {
@@ -1195,18 +1108,6 @@ class DatabaseDashboard:
                 </div>
             `).join('') || '<div>No vulnerable components found</div>';
             
-            // Recent Analyses
-            const analysesList = document.getElementById('recent-analyses-list');
-            analysesList.innerHTML = data.recent_analyses.map(analysis => `
-                <div class="component-item">
-                    <div class="component-name">${analysis.analysis_type.toUpperCase()} - ${analysis.status}</div>
-                    <div class="component-details">
-                        📦 ${analysis.component_count} Components | 
-                        🚨 ${analysis.vulnerability_count} Vulnerabilities | 
-                        ⏰ ${formatDateWithTimezone(analysis.created_at)}
-                    </div>
-                </div>
-            `).join('') || '<div>No recent analyses found</div>';
         }
         
         function updateSbomsList(sbomsData) {
@@ -1351,151 +1252,26 @@ class DatabaseDashboard:
             }
         }
         
-        function updateTrendsChart(trendsData) {
-            updateVulnerabilityTrends(trendsData);
-            updateSeverityDistribution(trendsData);
+        function updateSeverityChart(dashboardData) {
+            updateSeverityDistribution(dashboardData);
         }
         
-        function updateVulnerabilityTrends(trendsData) {
-            const ctx = document.getElementById('trendsChart').getContext('2d');
-            
-            if (trendsChart) {
-                trendsChart.destroy();
-            }
-            
-            const trends = trendsData.trends || [];
-            
-            trendsChart = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: trends.map(t => formatDateOnly(t.date)),
-                    datasets: [
-                        {
-                            label: 'Critical',
-                            data: trends.map(t => t.critical_vulnerabilities),
-                            backgroundColor: '#dc3545',
-                            borderColor: '#dc3545',
-                            borderWidth: 1
-                        },
-                        {
-                            label: 'High',
-                            data: trends.map(t => t.high_vulnerabilities),
-                            backgroundColor: '#fd7e14',
-                            borderColor: '#fd7e14',
-                            borderWidth: 1
-                        },
-                        {
-                            label: 'Medium',
-                            data: trends.map(t => t.medium_vulnerabilities || 0),
-                            backgroundColor: '#ffc107',
-                            borderColor: '#ffc107',
-                            borderWidth: 1
-                        },
-                        {
-                            label: 'Low',
-                            data: trends.map(t => t.low_vulnerabilities || 0),
-                            backgroundColor: '#28a745',
-                            borderColor: '#28a745',
-                            borderWidth: 1
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    layout: {
-                        padding: {
-                            left: 10,
-                            right: 10,
-                            top: 10,
-                            bottom: 25
-                        }
-                    },
-                    plugins: {
-                        title: {
-                            display: true,
-                            text: 'Daily Vulnerability Discovery',
-                            font: { size: 14, weight: 'bold' },
-                            color: '#2c3e50',
-                            padding: {
-                                top: 10,
-                                bottom: 10
-                            }
-                        },
-                        legend: {
-                            position: 'top',
-                            labels: { 
-                                usePointStyle: true,
-                                color: '#2c3e50',
-                                padding: 15
-                            }
-                        }
-                    },
-                    scales: {
-                        x: {
-                            stacked: true,
-                            ticks: { 
-                                color: '#2c3e50',
-                                maxRotation: 45,
-                                padding: 8
-                            },
-                            grid: { 
-                                color: 'rgba(44, 62, 80, 0.1)',
-                                drawTicks: true,
-                                tickLength: 8
-                            },
-                            offset: true
-                        },
-                        y: {
-                            stacked: true,
-                            beginAtZero: true,
-                            ticks: { 
-                                color: '#2c3e50',
-                                padding: 15
-                            },
-                            grid: { 
-                                color: 'rgba(44, 62, 80, 0.1)',
-                                drawTicks: true,
-                                tickLength: 8
-                            },
-                            title: {
-                                display: true,
-                                text: 'Number of Vulnerabilities',
-                                color: '#2c3e50',
-                                padding: {
-                                    top: 15,
-                                    bottom: 15
-                                }
-                            },
-                            grace: '8%',
-                            offset: true
-                        }
-                    },
-                    interaction: {
-                        mode: 'index',
-                        intersect: false
-                    }
-                }
-            });
-        }
         
-        function updateSeverityDistribution(trendsData) {
+        function updateSeverityDistribution(dashboardData) {
             const ctx = document.getElementById('severityChart').getContext('2d');
             
             if (severityChart) {
                 severityChart.destroy();
             }
             
-            const trends = trendsData.trends || [];
-            
-            // Calculate total vulnerabilities by severity across all days
-            const totals = trends.reduce((acc, trend) => {
-                acc.critical += trend.critical_vulnerabilities || 0;
-                acc.high += trend.high_vulnerabilities || 0;
-                acc.medium += trend.medium_vulnerabilities || 0;
-                acc.low += trend.low_vulnerabilities || 0;
-                return acc;
-            }, { critical: 0, high: 0, medium: 0, low: 0 });
+            // Get vulnerability summary from dashboard data
+            const vulnSummary = dashboardData.vulnerability_summary || {};
+            const totals = {
+                critical: vulnSummary.total_critical || 0,
+                high: vulnSummary.total_high || 0,
+                medium: vulnSummary.total_medium || 0,
+                low: vulnSummary.total_low || 0
+            };
             
             const data = [totals.critical, totals.high, totals.medium, totals.low];
             const labels = ['Critical', 'High', 'Medium', 'Low'];
@@ -2094,7 +1870,7 @@ class DatabaseDashboard:
             }
         }
         
-        function showNuclearPurgeConfirm() {
+        function showCompletePurgeConfirm() {
             const confirmModal = document.createElement('div');
             confirmModal.style.cssText = `
                 position: fixed;
@@ -2124,7 +1900,7 @@ class DatabaseDashboard:
             
             confirmDialog.innerHTML = `
                 <h2 style="color: #ff0000; margin-top: 0; font-size: 28px;">
-                    ☢️ NUCLEAR PURGE WARNING ☢️
+                    🔥 COMPLETE PURGE WARNING 🔥
                 </h2>
                 <p style="margin: 20px 0; font-size: 18px; color: #ffcccc;">
                     <strong>THIS WILL DESTROY EVERYTHING IN THE DATABASE!</strong>
@@ -2161,7 +1937,7 @@ class DatabaseDashboard:
                     ">
                         🛡️ ABORT - I WANT TO KEEP MY DATA
                     </button>
-                    <button onclick="showSecondNuclearConfirm()" style="
+                    <button onclick="showSecondCompletePurgeConfirm()" style="
                         background: #ff0000; 
                         color: white; 
                         border: 2px solid #cc0000; 
@@ -2180,7 +1956,7 @@ class DatabaseDashboard:
             document.body.appendChild(confirmModal);
         }
         
-        function showSecondNuclearConfirm() {
+        function showSecondCompletePurgeConfirm() {
             // Remove first confirmation
             document.querySelector('div[style*="position: fixed"]').remove();
             
@@ -2224,7 +2000,7 @@ class DatabaseDashboard:
                 <p style="margin: 30px 0; font-size: 18px; color: #ff9999;">
                     Type exactly: <strong style="color: #ff0000; font-size: 22px;">DESTROY-ALL-DATA</strong>
                 </p>
-                <input type="text" id="nuclear-confirm-input" placeholder="Type the confirmation text here..." style="
+                <input type="text" id="purge-confirm-input" placeholder="Type the confirmation text here..." style="
                     width: 100%;
                     padding: 20px;
                     font-size: 20px;
@@ -2249,7 +2025,7 @@ class DatabaseDashboard:
                     ">
                         ✅ STOP - KEEP ALL DATA
                     </button>
-                    <button onclick="executeNuclearPurge()" style="
+                    <button onclick="executeCompletePurge()" style="
                         background: #000000; 
                         color: #ff0000; 
                         border: 3px solid #ff0000; 
@@ -2259,7 +2035,7 @@ class DatabaseDashboard:
                         font-weight: bold;
                         font-size: 20px;
                     ">
-                        ☢️ EXECUTE NUCLEAR PURGE
+                        🔥 EXECUTE COMPLETE PURGE
                     </button>
                 </div>
             `;
@@ -2268,11 +2044,11 @@ class DatabaseDashboard:
             document.body.appendChild(secondModal);
             
             // Focus on input
-            document.getElementById('nuclear-confirm-input').focus();
+            document.getElementById('purge-confirm-input').focus();
         }
         
-        async function executeNuclearPurge() {
-            const input = document.getElementById('nuclear-confirm-input');
+        async function executeCompletePurge() {
+            const input = document.getElementById('purge-confirm-input');
             if (input.value !== 'DESTROY-ALL-DATA') {
                 alert('❌ Confirmation text does not match. Type exactly: "DESTROY-ALL-DATA"');
                 input.focus();
@@ -2282,7 +2058,7 @@ class DatabaseDashboard:
             // Remove confirmation modal
             document.querySelector('div[style*="position: fixed"]').remove();
             
-            // Execute the nuclear purge
+            // Execute the complete purge
             try {
                 // Show critical loading state
                 const loadingModal = document.createElement('div');
@@ -2306,7 +2082,7 @@ class DatabaseDashboard:
                 `;
                 
                 loadingContent.innerHTML = `
-                    <h2 style="color: #ff0000; font-size: 36px;">☢️ NUCLEAR PURGE IN PROGRESS ☢️</h2>
+                    <h2 style="color: #ff0000; font-size: 36px;">🔥 COMPLETE PURGE IN PROGRESS 🔥</h2>
                     <p style="font-size: 24px; margin: 20px 0;">DESTROYING ALL DATA...</p>
                     <p style="font-size: 18px; color: #ff9999;">Please wait. This cannot be cancelled.</p>
                 `;
@@ -2359,7 +2135,7 @@ class DatabaseDashboard:
                 
                 completeContent.innerHTML = `
                     <h2 style="color: #dc3545; margin-top: 0; font-size: 32px;">
-                        ☢️ NUCLEAR PURGE COMPLETED
+                        🔥 COMPLETE PURGE COMPLETED
                     </h2>
                     <p style="font-size: 20px; margin: 20px 0;">
                         <strong>ALL DATA HAS BEEN DESTROYED</strong>
@@ -2419,7 +2195,7 @@ class DatabaseDashboard:
                 }, 10000);
                 
             } catch (error) {
-                alert(`❌ NUCLEAR PURGE FAILED: ${error.message}`);
+                alert(`❌ COMPLETE PURGE FAILED: ${error.message}`);
                 location.reload();
             }
         }
@@ -2430,13 +2206,10 @@ class DatabaseDashboard:
             document.getElementById('error').style.display = 'none';
             
             try {
-                const [dashboardData, trendsData] = await Promise.all([
-                    fetchDashboardData(),
-                    fetchTrendsData()
-                ]);
+                const dashboardData = await fetchDashboardData();
                 
                 updateDashboard(dashboardData);
-                updateTrendsChart(trendsData);
+                updateSeverityChart(dashboardData);
                 
                 // Load SBOMs separately with pagination
                 await loadSBOMs();
