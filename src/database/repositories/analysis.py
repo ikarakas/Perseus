@@ -82,21 +82,44 @@ class AnalysisRepository(BaseRepository[Analysis]):
     
     def get_vulnerability_summary(self) -> Dict[str, Any]:
         """Get summary of vulnerabilities across all analyses"""
+        # Get analysis statistics
         result = self.session.query(
             func.count(Analysis.id).label('total_analyses'),
-            func.sum(Analysis.vulnerability_count).label('total_vulnerabilities'),
-            func.sum(Analysis.critical_vulnerability_count).label('total_critical'),
-            func.sum(Analysis.high_vulnerability_count).label('total_high'),
+            func.sum(Analysis.vulnerability_count).label('total_scan_findings'),
             func.avg(Analysis.vulnerability_count).label('avg_vulnerabilities_per_analysis')
         ).filter(
             Analysis.status == AnalysisStatus.COMPLETED
         ).first()
         
+        # Get actual unique vulnerability counts from vulnerabilities linked to active components
+        from ..models import Vulnerability, VulnerabilitySeverity, Component, component_vulnerabilities
+        
+        # Only count vulnerabilities that are currently linked to components from active analyses
+        active_vulns_query = self.session.query(Vulnerability).join(
+            component_vulnerabilities
+        ).join(Component).join(Analysis).filter(
+            Analysis.status == AnalysisStatus.COMPLETED
+        )
+        
+        # Total unique active vulnerabilities
+        total_unique_vulns = active_vulns_query.distinct().count()
+        
+        # Count by severity for active vulnerabilities only
+        severity_counts = dict(
+            active_vulns_query.with_entities(
+                Vulnerability.severity, 
+                func.count(Vulnerability.id.distinct())
+            ).group_by(Vulnerability.severity).all()
+        )
+        
         return {
             'total_analyses': result.total_analyses or 0,
-            'total_vulnerabilities': int(result.total_vulnerabilities or 0),
-            'total_critical': int(result.total_critical or 0),
-            'total_high': int(result.total_high or 0),
+            'total_vulnerabilities': total_unique_vulns,  # Unique vulnerabilities
+            'total_scan_findings': int(result.total_scan_findings or 0),  # Raw scan count
+            'total_critical': severity_counts.get(VulnerabilitySeverity.CRITICAL, 0),
+            'total_high': severity_counts.get(VulnerabilitySeverity.HIGH, 0),
+            'total_medium': severity_counts.get(VulnerabilitySeverity.MEDIUM, 0),
+            'total_low': severity_counts.get(VulnerabilitySeverity.LOW, 0),
             'avg_vulnerabilities_per_analysis': float(result.avg_vulnerabilities_per_analysis or 0)
         }
     

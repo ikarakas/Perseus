@@ -44,6 +44,15 @@ class ComponentRepository(BaseRepository[Component]):
             Component.id == component_id
         ).first()
     
+    def get_by_analysis_and_name(self, analysis_id: UUID, component_name: str) -> Optional[Component]:
+        """Get component by analysis ID and component name"""
+        return self.session.query(Component).filter(
+            and_(
+                Component.analysis_id == analysis_id,
+                Component.name == component_name
+            )
+        ).first()
+    
     def search_components(self, search_term: str, limit: int = 50) -> List[Component]:
         """Search components by name or description"""
         search_pattern = f"%{search_term}%"

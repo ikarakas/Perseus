@@ -702,7 +702,7 @@ python debug-agent/debug_agent.py
 
 ## 📄 License
 
-Perseus is licensed under the **NAEW&C Force License (NFCL) v1.0**. See [LICENSE](LICENSE) for details.
+Perseus is licensed under the **NAEW&C Force License (NFCL) v1.0**. See [LICENSE](LICENSE.md) for details.
 
 ---
 
