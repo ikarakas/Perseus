@@ -1171,7 +1171,13 @@ async def list_vulnerabilities(
             logger.info(f"Getting component context for vulnerability: {v.vulnerability_id}")
             component_context = vuln_repo.get_vulnerability_component_context(v.vulnerability_id)
             logger.info(f"Component context result: {len(component_context) if component_context else 0} items")
-            if component_context:
+            
+            # Check if vulnerability is orphan
+            is_orphan = vuln_repo.is_vulnerability_orphan(v.vulnerability_id)
+            vuln_data["is_orphan"] = is_orphan
+            vuln_data["component_count"] = len(component_context) if component_context else 0
+            
+            if component_context and not is_orphan:
                 # Take the first component as primary context
                 primary_context = component_context[0]
                 vuln_data["component_name"] = primary_context.get("component_name")
@@ -1181,6 +1187,11 @@ async def list_vulnerabilities(
                 # If there are multiple components, add a count
                 if len(component_context) > 1:
                     vuln_data["additional_components"] = len(component_context) - 1
+            else:
+                # Mark orphan vulnerabilities
+                vuln_data["component_name"] = None
+                vuln_data["component_version"] = None
+                vuln_data["analysis_id"] = None
                         
             formatted_vulns.append(vuln_data)
         
@@ -1195,6 +1206,76 @@ async def list_vulnerabilities(
     except Exception as e:
         logger.error(f"Error listing vulnerabilities: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/vulnerabilities/orphans")
+async def get_orphan_vulnerabilities(
+    limit: int = 50,
+    offset: int = 0,
+    db: Session = Depends(get_db_session)
+):
+    """Get vulnerabilities that have no linked components (orphan vulnerabilities)"""
+    try:
+        vuln_repo = VulnerabilityRepository(db)
+        
+        orphan_vulnerabilities = vuln_repo.get_orphan_vulnerabilities(limit=limit, offset=offset)
+        total_count = vuln_repo.count_orphan_vulnerabilities()
+        
+        formatted_vulns = []
+        for v in orphan_vulnerabilities:
+            vuln_data = {
+                "vulnerability_id": v.vulnerability_id,
+                "title": v.title,
+                "severity": v.severity.value if v.severity else None,
+                "cvss_score": v.cvss_score,
+                "published_date": v.published_date,
+                "description": v.description[:200] + "..." if v.description and len(v.description) > 200 else v.description,
+                "is_orphan": True,
+                "component_count": 0
+            }
+            formatted_vulns.append(vuln_data)
+        
+        return {
+            "vulnerabilities": formatted_vulns,
+            "total_count": total_count,
+            "orphan_count": total_count,
+            "page_info": {
+                "limit": limit,
+                "offset": offset,
+                "has_more": offset + limit < total_count
+            }
+        }
+        
+    except Exception as e:
+        import traceback
+        error_msg = f"Error getting orphan vulnerabilities: {e}"
+        logger.error(error_msg)
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=error_msg)
+
+
+@app.delete("/api/v1/vulnerabilities/orphans")
+async def delete_orphan_vulnerabilities(db: Session = Depends(get_db_session)):
+    """Delete all orphan vulnerabilities"""
+    try:
+        vuln_repo = VulnerabilityRepository(db)
+        
+        orphan_count_before = vuln_repo.count_orphan_vulnerabilities()
+        deleted_count = vuln_repo.delete_orphan_vulnerabilities()
+        
+        return {
+            "message": f"Successfully deleted {deleted_count} orphan vulnerabilities",
+            "deleted_count": deleted_count,
+            "orphan_count_before": orphan_count_before,
+            "orphan_count_after": vuln_repo.count_orphan_vulnerabilities()
+        }
+        
+    except Exception as e:
+        import traceback
+        error_msg = f"Error deleting orphan vulnerabilities: {e}"
+        logger.error(error_msg)
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=error_msg)
 
 
 @app.get("/api/v1/vulnerabilities/{vulnerability_id}")
@@ -1266,6 +1347,7 @@ async def get_critical_vulnerabilities(limit: int = 20, db: Session = Depends(ge
     except Exception as e:
         logger.error(f"Error getting critical vulnerabilities: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 
 @app.get("/api/v1/vulnerability-scans")
