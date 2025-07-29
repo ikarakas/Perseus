@@ -154,3 +154,22 @@ def get_db_session():
         yield db
     finally:
         db.close()
+
+
+@contextmanager
+def get_db_for_task() -> Generator[Session, None, None]:
+    """
+    Context manager for database sessions in background tasks
+    Does NOT auto-commit - caller must explicitly commit
+    
+    Yields:
+        Session: A database session that must be manually committed
+    """
+    db = get_session()
+    try:
+        yield db
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()

@@ -265,18 +265,16 @@ def setup_component_search_routes(app):
             document.getElementById('results').innerHTML = '';
             
             try {
-                let url;
+                // Always use the search endpoint and include ALL parameters
+                const url = '/api/v1/components/search';
                 const params = new URLSearchParams();
                 
-                if (vulnerableOnly) {
-                    url = '/api/v1/components/vulnerable';
-                    if (minSeverity) params.append('min_severity', minSeverity);
-                    if (analysisIdFilter) params.append('analysis_id', analysisIdFilter);
-                } else {
-                    url = '/api/v1/components/search';
-                    if (query) params.append('q', query);
-                    if (analysisIdFilter) params.append('analysis_id', analysisIdFilter);
-                }
+                // Add all search parameters
+                if (query) params.append('q', query);
+                if (analysisIdFilter) params.append('analysis_id', analysisIdFilter);
+                if (vulnerableOnly) params.append('vulnerable_only', 'true');
+                if (minSeverity) params.append('min_severity', minSeverity);
+                if (componentType) params.append('component_type', componentType);
                 
                 params.append('limit', '50');
                 

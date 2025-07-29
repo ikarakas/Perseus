@@ -17,13 +17,7 @@ from ..api.models import AnalysisOptions, AnalysisResult, Component
 logger = logging.getLogger(__name__)
 
 class JavaSourceAnalyzer(BaseAnalyzer):
-    """Analyzer for Java source code"""
-    
-    def __init__(self):
-        self.java_standard_packages = {
-            'java.lang', 'java.util', 'java.io', 'java.net', 'java.sql',
-            'javax.swing', 'javax.sql', 'org.w3c.dom', 'org.xml.sax'
-        }
+    """Analyzer for Java source code - supports Maven POM and Gradle build files"""
     
     async def analyze(self, location: str, options: Optional[AnalysisOptions] = None) -> AnalysisResult:
         """Analyze Java source code"""
@@ -49,10 +43,7 @@ class JavaSourceAnalyzer(BaseAnalyzer):
                 gradle_components.extend(self._analyze_gradle_build(gradle_file))
             components.extend(gradle_components)
             
-            # Analyze Java source files for imports
-            source_files = self._find_java_files(source_path)
-            import_components = self._analyze_imports(source_files)
-            components.extend(import_components)
+            # Note: Java import analysis removed for simplicity
             
             # Analyze JAR files if present
             jar_files = self._find_jar_files(source_path)
@@ -68,7 +59,6 @@ class JavaSourceAnalyzer(BaseAnalyzer):
                 components=unique_components,
                 errors=errors,
                 metadata={
-                    "source_files_analyzed": len(source_files),
                     "build_files_found": sum(len(files) for files in build_files.values()),
                     "jar_files_found": len(jar_files),
                     "analyzer_type": "java_source"
@@ -102,16 +92,6 @@ class JavaSourceAnalyzer(BaseAnalyzer):
         
         return build_files
     
-    def _find_java_files(self, source_path: str) -> List[str]:
-        """Find Java source files"""
-        java_files = []
-        
-        for root, dirs, files in os.walk(source_path):
-            for file in files:
-                if file.endswith('.java'):
-                    java_files.append(os.path.join(root, file))
-        
-        return java_files
     
     def _find_jar_files(self, source_path: str) -> List[str]:
         """Find JAR files"""
@@ -258,67 +238,6 @@ class JavaSourceAnalyzer(BaseAnalyzer):
         
         return components
     
-    def _analyze_imports(self, java_files: List[str]) -> List[Component]:
-        """Analyze import statements in Java files"""
-        components = []
-        external_packages = set()
-        
-        for java_file in java_files:
-            try:
-                with open(java_file, 'r', encoding='utf-8', errors='ignore') as f:
-                    content = f.read()
-                
-                # Find import statements
-                import_pattern = r'import\s+(static\s+)?([^;]+);'
-                matches = re.findall(import_pattern, content)
-                
-                for match in matches:
-                    import_path = match[1].strip()
-                    
-                    # Skip standard Java packages
-                    if not any(import_path.startswith(pkg) for pkg in self.java_standard_packages):
-                        # Extract package name (first few components)
-                        package_parts = import_path.split('.')
-                        if len(package_parts) >= 3:
-                            # Use first 2-3 parts as likely library identifier
-                            package_name = '.'.join(package_parts[:3])
-                            external_packages.add(package_name)
-                            
-            except Exception as e:
-                logger.warning(f"Failed to parse Java file {java_file}: {e}")
-        
-        # Create components for external packages
-        for package in external_packages:
-            # Try to infer library name from package
-            lib_name = self._infer_library_from_package(package)
-            if lib_name:
-                # Create a proper PURL for known libraries
-                purl = None
-                if lib_name == 'pcap4j':
-                    purl = 'pkg:maven/org.pcap4j/pcap4j-core'
-                elif lib_name == 'jna':
-                    purl = 'pkg:maven/net.java.dev.jna/jna'
-                elif lib_name.startswith('commons-'):
-                    artifact = lib_name[8:]  # Remove 'commons-' prefix
-                    purl = f'pkg:maven/org.apache.commons/commons-{artifact}'
-                elif lib_name.startswith('apache-'):
-                    artifact = lib_name[7:]  # Remove 'apache-' prefix
-                    purl = f'pkg:maven/org.apache/{artifact}'
-                elif lib_name.startswith('spring-'):
-                    artifact = lib_name[7:]  # Remove 'spring-' prefix
-                    purl = f'pkg:maven/org.springframework/spring-{artifact}'
-                else:
-                    # Generic PURL for other libraries
-                    purl = f'pkg:maven/unknown/{lib_name}'
-                
-                component = self._create_component(
-                    name=lib_name,
-                    purl=purl,
-                    source_location="inferred_from_imports"
-                )
-                components.append(component)
-        
-        return components
     
     def _analyze_jar_files(self, jar_files: List[str]) -> List[Component]:
         """Analyze JAR files for basic information"""
@@ -352,49 +271,6 @@ class JavaSourceAnalyzer(BaseAnalyzer):
         
         return element.text.strip() if element is not None and element.text else None
     
-    def _infer_library_from_package(self, package_name: str) -> Optional[str]:
-        """Infer library name from Java package name"""
-        # Common library patterns
-        library_patterns = {
-            'org.apache.': 'apache-',
-            'org.springframework.': 'spring-',
-            'com.google.': 'google-',
-            'com.fasterxml.jackson.': 'jackson',
-            'org.slf4j.': 'slf4j',
-            'ch.qos.logback.': 'logback',
-            'org.junit.': 'junit',
-            'org.mockito.': 'mockito',
-            'org.hibernate.': 'hibernate',
-            'com.mysql.': 'mysql-connector',
-            'org.postgresql.': 'postgresql',
-            'org.pcap4j.': 'pcap4j',
-            'net.java.dev.jna.': 'jna',
-            'org.apache.commons.': 'commons-',
-            'org.apache.log4j.': 'log4j',
-            'com.amazonaws.': 'aws-java-sdk',
-            'io.netty.': 'netty',
-            'org.json.': 'json',
-            'com.auth0.': 'java-jwt',
-            'io.jsonwebtoken.': 'jjwt'
-        }
-        
-        for pattern, lib_name in library_patterns.items():
-            if package_name.startswith(pattern):
-                if lib_name.endswith('-'):
-                    # Extract specific component
-                    remaining = package_name[len(pattern):]
-                    component = remaining.split('.')[0]
-                    return f"{lib_name}{component}"
-                else:
-                    return lib_name
-        
-        # Extract organization and project from package
-        parts = package_name.split('.')
-        if len(parts) >= 3:
-            # Reverse domain notation: com.company.project
-            return f"{parts[1]}-{parts[2]}"
-        
-        return package_name.replace('.', '-')
     
     def _parse_jar_filename(self, jar_name: str) -> tuple[str, Optional[str]]:
         """Parse JAR filename to extract name and version"""

@@ -20,7 +20,8 @@ from ..common.storage import ResultStorage
 from ..api.models import AnalysisRequest, SBOMRequest, AnalysisResult
 from ..monitoring.metrics import MetricsCollector
 from ..vulnerability.scanner import VulnerabilityScanner
-from ..database import get_db_session, test_connection
+from ..database import test_connection
+from ..database.connection import get_db_for_task
 from ..database.repositories import (
     AnalysisRepository, ComponentRepository, SBOMRepository,
     VulnerabilityRepository, VulnerabilityScanRepository
@@ -78,43 +79,42 @@ class WorkflowEngine:
             analysis = analysis_repo.get_by_analysis_id(analysis_id)
             
             if analysis:
-                # Use atomic transaction to ensure count consistency
-                with db.begin():
-                    # Calculate counts from actual database state
-                    from sqlalchemy import func
-                    
-                    # Get component count from database
-                    component_count = db.query(func.count(Component.id)).filter(
-                        Component.analysis_id == analysis.id
-                    ).scalar()
-                    
-                    # Get vulnerability counts from components
-                    vuln_counts = db.query(
-                        func.sum(Component.vulnerability_count).label('total'),
-                        func.sum(Component.critical_vulnerabilities).label('critical'),
-                        func.sum(Component.high_vulnerabilities).label('high')
-                    ).filter(
-                        Component.analysis_id == analysis.id
-                    ).first()
-                    
-                    total_vulnerabilities = int(vuln_counts.total or 0)
-                    critical_vulnerabilities = int(vuln_counts.critical or 0)
-                    high_vulnerabilities = int(vuln_counts.high or 0)
-                    
-                    completion_data = {
-                        'status': AnalysisStatus.COMPLETED,
-                        'completed_at': datetime.utcnow(),
-                        'component_count': component_count,
-                        'vulnerability_count': total_vulnerabilities,
-                        'critical_vulnerability_count': critical_vulnerabilities,
-                        'high_vulnerability_count': high_vulnerabilities,
-                        'duration_seconds': (datetime.utcnow() - analysis.started_at).total_seconds() if analysis.started_at else None
-                    }
-                    
-                    analysis_repo.update(analysis.id, **completion_data)
-                    
-                    # Log count validation
-                    logger.info(f"Analysis {analysis_id} completed with {component_count} components, {total_vulnerabilities} vulnerabilities")
+                # Calculate counts from actual database state
+                from sqlalchemy import func
+                from ..database.models import Component
+                
+                # Get component count from database
+                component_count = db.query(func.count(Component.id)).filter(
+                    Component.analysis_id == analysis.id
+                ).scalar()
+                
+                # Get vulnerability counts from components
+                vuln_counts = db.query(
+                    func.sum(Component.vulnerability_count).label('total'),
+                    func.sum(Component.critical_vulnerabilities).label('critical'),
+                    func.sum(Component.high_vulnerabilities).label('high')
+                ).filter(
+                    Component.analysis_id == analysis.id
+                ).first()
+                
+                total_vulnerabilities = int(vuln_counts.total or 0)
+                critical_vulnerabilities = int(vuln_counts.critical or 0)
+                high_vulnerabilities = int(vuln_counts.high or 0)
+                
+                completion_data = {
+                    'status': AnalysisStatus.COMPLETED,
+                    'completed_at': datetime.utcnow(),
+                    'component_count': component_count,
+                    'vulnerability_count': total_vulnerabilities,
+                    'critical_vulnerability_count': critical_vulnerabilities,
+                    'high_vulnerability_count': high_vulnerabilities,
+                    'duration_seconds': (datetime.utcnow() - analysis.started_at).total_seconds() if analysis.started_at else None
+                }
+                
+                analysis_repo.update(analysis.id, **completion_data)
+                
+                # Log count validation
+                logger.info(f"Analysis {analysis_id} completed with {component_count} components, {total_vulnerabilities} vulnerabilities")
                 
                 return analysis
         except Exception as e:
@@ -203,7 +203,6 @@ class WorkflowEngine:
         
     async def analyze_source(self, analysis_id: str, request: AnalysisRequest) -> None:
         """Analyze source code"""
-        db_session = None
         try:
             self.active_analyses[analysis_id] = {
                 "status": "running",
@@ -214,19 +213,13 @@ class WorkflowEngine:
             
             logger.info(f"Starting source analysis {analysis_id}")
             
-            # Create database record if database is available
-            if self.use_database:
-                db_session = next(get_db_session())
-                self._create_analysis_record(analysis_id, "source", request, db_session)
-            
             # Record analysis start in metrics
             if self.metrics_collector:
                 self.metrics_collector.record_analysis_start(analysis_id, "source", request.language)
             
             # Get appropriate analyzer
-            analyze_imports = request.options.analyze_imports if request.options else False
-            logger.info(f"Analyze imports option: {analyze_imports}, Options: {request.options}")
-            analyzer = self.analyzer_factory.get_source_analyzer(request.language, analyze_imports)
+            logger.info(f"Source analysis options: {request.options}")
+            analyzer = self.analyzer_factory.get_source_analyzer(request.language)
             
             # Run analysis
             results = await analyzer.analyze(request.location, request.options)
@@ -234,35 +227,45 @@ class WorkflowEngine:
             # Set the analysis ID in the results
             results.analysis_id = analysis_id
             
-            # Run vulnerability scanning if enabled
-            if request.options and request.options.include_vulnerabilities:
-                await self._add_vulnerability_data(results, db_session)
+            # Store results in database if available
+            if self.use_database:
+                with get_db_for_task() as db_session:
+                    try:
+                        # Create analysis record
+                        self._create_analysis_record(analysis_id, "source", request, db_session)
+                        
+                        # Run vulnerability scanning if enabled
+                        if request.options and request.options.include_vulnerabilities:
+                            await self._add_vulnerability_data(results, db_session)
+                        
+                        # Store components
+                        if results.components:
+                            self._store_components_in_db(analysis_id, results.components, db_session)
+                        
+                        # Link vulnerabilities to components if vulnerability scanning was performed
+                        if hasattr(results, 'vulnerability_summary') and results.vulnerability_summary:
+                            linked_count = self._link_vulnerabilities_to_components(analysis_id, db_session)
+                            # Update metadata with correct vulnerability count
+                            if linked_count is not None and hasattr(results, 'metadata'):
+                                results.metadata.update({
+                                    'total_vulnerabilities': linked_count,
+                                    'raw_scan_vulnerabilities': results.metadata.get('total_vulnerabilities', 0)
+                                })
+                        
+                        # Update analysis completion
+                        self._update_analysis_completion(analysis_id, results, db_session)
+                        
+                        # Commit all changes
+                        db_session.commit()
+                        logger.info(f"Database transaction committed for analysis {analysis_id}")
+                        
+                    except Exception as db_e:
+                        db_session.rollback()
+                        logger.error(f"Database operation failed, rolled back: {db_e}")
+                        # Continue even if database fails
             
             # Store results in file system (for backward compatibility)
             self.storage.store_analysis_result(analysis_id, results)
-            
-            # Store results in database if available
-            if self.use_database and db_session:
-                # Store components
-                if results.components:
-                    self._store_components_in_db(analysis_id, results.components, db_session)
-                
-                # Link vulnerabilities to components if vulnerability scanning was performed
-                if hasattr(results, 'vulnerability_summary') and results.vulnerability_summary:
-                    linked_count = self._link_vulnerabilities_to_components(analysis_id, db_session)
-                    # Update metadata with correct vulnerability count
-                    if linked_count is not None and hasattr(results, 'metadata'):
-                        results.metadata.update({
-                            'total_vulnerabilities': linked_count,
-                            'raw_scan_vulnerabilities': results.metadata.get('total_vulnerabilities', 0)
-                        })
-                        # Store updated results
-                        self.storage.store_analysis_result(analysis_id, results)
-                
-                # Update analysis completion
-                self._update_analysis_completion(analysis_id, results, db_session)
-                
-                db_session.commit()
             
             self.active_analyses[analysis_id].update({
                 "status": "completed",
@@ -283,15 +286,16 @@ class WorkflowEngine:
             logger.error(f"Source analysis {analysis_id} failed: {e}")
             
             # Update database with failure if available
-            if self.use_database and db_session:
-                try:
-                    analysis_repo = AnalysisRepository(db_session)
-                    analysis = analysis_repo.get_by_analysis_id(analysis_id)
-                    if analysis:
-                        analysis_repo.update(analysis.id, status=AnalysisStatus.FAILED, errors=[str(e)])
-                        db_session.commit()
-                except Exception as db_e:
-                    logger.error(f"Failed to update database with error: {db_e}")
+            if self.use_database:
+                with get_db_for_task() as db_session:
+                    try:
+                        analysis_repo = AnalysisRepository(db_session)
+                        analysis = analysis_repo.get_by_analysis_id(analysis_id)
+                        if analysis:
+                            analysis_repo.update(analysis.id, status=AnalysisStatus.FAILED, errors=[str(e)])
+                            db_session.commit()
+                    except Exception as db_e:
+                        logger.error(f"Failed to update database with error: {db_e}")
             
             self.active_analyses[analysis_id].update({
                 "status": "failed",
@@ -305,13 +309,9 @@ class WorkflowEngine:
                     analysis_id, "source", request.language, 
                     success=False, components_found=0
                 )
-        finally:
-            if db_session:
-                db_session.close()
     
     async def analyze_binary(self, analysis_id: str, request: AnalysisRequest) -> None:
         """Analyze binary files"""
-        db_session = None
         try:
             self.active_analyses[analysis_id] = {
                 "status": "running",
@@ -321,11 +321,6 @@ class WorkflowEngine:
             }
             
             logger.info(f"Starting binary analysis {analysis_id}")
-            
-            # Create database record if database is available
-            if self.use_database:
-                db_session = next(get_db_session())
-                self._create_analysis_record(analysis_id, "binary", request, db_session)
             
             # Record analysis start in metrics
             if self.metrics_collector:
@@ -340,35 +335,45 @@ class WorkflowEngine:
             # Set the analysis ID in the results
             results.analysis_id = analysis_id
             
-            # Run vulnerability scanning if enabled
-            if request.options and request.options.include_vulnerabilities:
-                await self._add_vulnerability_data(results, db_session)
+            # Store results in database if available
+            if self.use_database:
+                with get_db_for_task() as db_session:
+                    try:
+                        # Create analysis record
+                        self._create_analysis_record(analysis_id, "binary", request, db_session)
+                        
+                        # Run vulnerability scanning if enabled
+                        if request.options and request.options.include_vulnerabilities:
+                            await self._add_vulnerability_data(results, db_session)
+                        
+                        # Store components
+                        if results.components:
+                            self._store_components_in_db(analysis_id, results.components, db_session)
+                        
+                        # Link vulnerabilities to components if vulnerability scanning was performed
+                        if hasattr(results, 'vulnerability_summary') and results.vulnerability_summary:
+                            linked_count = self._link_vulnerabilities_to_components(analysis_id, db_session)
+                            # Update metadata with correct vulnerability count
+                            if linked_count is not None and hasattr(results, 'metadata'):
+                                results.metadata.update({
+                                    'total_vulnerabilities': linked_count,
+                                    'raw_scan_vulnerabilities': results.metadata.get('total_vulnerabilities', 0)
+                                })
+                        
+                        # Update analysis completion
+                        self._update_analysis_completion(analysis_id, results, db_session)
+                        
+                        # Commit all changes
+                        db_session.commit()
+                        logger.info(f"Database transaction committed for analysis {analysis_id}")
+                        
+                    except Exception as db_e:
+                        db_session.rollback()
+                        logger.error(f"Database operation failed, rolled back: {db_e}")
+                        # Continue even if database fails
             
             # Store results in file system (for backward compatibility)
             self.storage.store_analysis_result(analysis_id, results)
-            
-            # Store results in database if available
-            if self.use_database and db_session:
-                # Store components
-                if results.components:
-                    self._store_components_in_db(analysis_id, results.components, db_session)
-                
-                # Link vulnerabilities to components if vulnerability scanning was performed
-                if hasattr(results, 'vulnerability_summary') and results.vulnerability_summary:
-                    linked_count = self._link_vulnerabilities_to_components(analysis_id, db_session)
-                    # Update metadata with correct vulnerability count
-                    if linked_count is not None and hasattr(results, 'metadata'):
-                        results.metadata.update({
-                            'total_vulnerabilities': linked_count,
-                            'raw_scan_vulnerabilities': results.metadata.get('total_vulnerabilities', 0)
-                        })
-                        # Store updated results
-                        self.storage.store_analysis_result(analysis_id, results)
-                
-                # Update analysis completion
-                self._update_analysis_completion(analysis_id, results, db_session)
-                
-                db_session.commit()
             
             self.active_analyses[analysis_id].update({
                 "status": "completed",
@@ -389,15 +394,16 @@ class WorkflowEngine:
             logger.error(f"Binary analysis {analysis_id} failed: {e}")
             
             # Update database with failure if available
-            if self.use_database and db_session:
-                try:
-                    analysis_repo = AnalysisRepository(db_session)
-                    analysis = analysis_repo.get_by_analysis_id(analysis_id)
-                    if analysis:
-                        analysis_repo.update(analysis.id, status=AnalysisStatus.FAILED, errors=[str(e)])
-                        db_session.commit()
-                except Exception as db_e:
-                    logger.error(f"Failed to update database with error: {db_e}")
+            if self.use_database:
+                with get_db_for_task() as db_session:
+                    try:
+                        analysis_repo = AnalysisRepository(db_session)
+                        analysis = analysis_repo.get_by_analysis_id(analysis_id)
+                        if analysis:
+                            analysis_repo.update(analysis.id, status=AnalysisStatus.FAILED, errors=[str(e)])
+                            db_session.commit()
+                    except Exception as db_e:
+                        logger.error(f"Failed to update database with error: {db_e}")
             
             self.active_analyses[analysis_id].update({
                 "status": "failed",
@@ -411,9 +417,6 @@ class WorkflowEngine:
                     analysis_id, "binary", None, 
                     success=False, components_found=0
                 )
-        finally:
-            if db_session:
-                db_session.close()
     
     def get_analysis_status(self, analysis_id: str) -> Optional[Dict[str, Any]]:
         """Get analysis status"""
@@ -425,7 +428,6 @@ class WorkflowEngine:
     
     async def generate_sbom(self, sbom_id: str, request: SBOMRequest) -> None:
         """Generate SBOM from analysis results"""
-        db_session = None
         try:
             logger.info(f"Starting SBOM generation {sbom_id}")
             start_time = datetime.utcnow()
@@ -433,41 +435,43 @@ class WorkflowEngine:
             # Collect analysis results and metadata
             analysis_results = []
             analysis_metadata = None
-            db_session_temp = None
             
-            try:
-                if self.use_database:
-                    db_session_temp = next(get_db_session())
-                    analysis_repo = AnalysisRepository(db_session_temp)
-                
+            # Get analysis metadata from database if available
+            if self.use_database:
+                with get_db_for_task() as db_session:
+                    analysis_repo = AnalysisRepository(db_session)
+                    
+                    for analysis_id in request.analysis_ids:
+                        result = self.storage.get_analysis_result(analysis_id)
+                        if result:
+                            analysis_results.append(result)
+                            
+                            # Get analysis metadata from database (use first analysis)
+                            if analysis_metadata is None:
+                                db_analysis = analysis_repo.get_by_analysis_id(analysis_id)
+                                if db_analysis:
+                                    analysis_metadata = {
+                                        "analysis_id": db_analysis.analysis_id,
+                                        "analysis_type": db_analysis.analysis_type,
+                                        "location": db_analysis.location,
+                                        "language": db_analysis.language,
+                                        "source_metadata": {
+                                            "started_at": db_analysis.started_at.isoformat() if db_analysis.started_at else None,
+                                            "completed_at": db_analysis.completed_at.isoformat() if db_analysis.completed_at else None,
+                                            "duration_seconds": db_analysis.duration_seconds,
+                                            "component_count": db_analysis.component_count,
+                                            "vulnerability_count": db_analysis.vulnerability_count
+                                        }
+                                    }
+                                    # Add any additional metadata from the analysis_metadata field
+                                    if db_analysis.analysis_metadata:
+                                        analysis_metadata["source_metadata"].update(db_analysis.analysis_metadata)
+            else:
+                # No database, just collect from file storage
                 for analysis_id in request.analysis_ids:
                     result = self.storage.get_analysis_result(analysis_id)
                     if result:
                         analysis_results.append(result)
-                        
-                        # Get analysis metadata from database if available (use first analysis)
-                        if analysis_metadata is None and self.use_database and db_session_temp:
-                            db_analysis = analysis_repo.get_by_analysis_id(analysis_id)
-                            if db_analysis:
-                                analysis_metadata = {
-                                    "analysis_id": db_analysis.analysis_id,
-                                    "analysis_type": db_analysis.analysis_type,
-                                    "location": db_analysis.location,
-                                    "language": db_analysis.language,
-                                    "source_metadata": {
-                                        "started_at": db_analysis.started_at.isoformat() if db_analysis.started_at else None,
-                                        "completed_at": db_analysis.completed_at.isoformat() if db_analysis.completed_at else None,
-                                        "duration_seconds": db_analysis.duration_seconds,
-                                        "component_count": db_analysis.component_count,
-                                        "vulnerability_count": db_analysis.vulnerability_count
-                                    }
-                                }
-                                # Add any additional metadata from the analysis_metadata field
-                                if db_analysis.analysis_metadata:
-                                    analysis_metadata["source_metadata"].update(db_analysis.analysis_metadata)
-            finally:
-                if db_session_temp:
-                    db_session_temp.close()
             
             if not analysis_results:
                 raise ValueError("No valid analysis results found")
@@ -486,40 +490,41 @@ class WorkflowEngine:
             
             # Store SBOM in database if available
             if self.use_database:
-                db_session = next(get_db_session())
-                try:
-                    sbom_repo = SBOMRepository(db_session)
-                    analysis_repo = AnalysisRepository(db_session)
-                    
-                    # Get the first analysis for SBOM association (could be enhanced to support multiple)
-                    primary_analysis = analysis_repo.get_by_analysis_id(request.analysis_ids[0])
-                    
-                    if primary_analysis:
-                        # Calculate component count
-                        total_components = sum(len(result.components) for result in analysis_results)
+                with get_db_for_task() as db_session:
+                    try:
+                        sbom_repo = SBOMRepository(db_session)
+                        analysis_repo = AnalysisRepository(db_session)
                         
-                        sbom_db_data = {
-                            'sbom_id': sbom_id,
-                            'format': request.format,
-                            'spec_version': sbom_data.get('specVersion') or sbom_data.get('spec_version', '2.3'),
-                            'content': sbom_data,
-                            'name': sbom_data.get('name', f"SBOM-{sbom_id}"),
-                            'namespace': sbom_data.get('documentNamespace') or sbom_data.get('metadata', {}).get('component', {}).get('bom-ref', ''),
-                            'created_by': 'Perseus Platform v1.5.0',
-                            'component_count': total_components,
-                            'file_path': f"data/sboms/{sbom_id}.json",
-                            'analysis_id': primary_analysis.id
-                        }
+                        # Get the first analysis for SBOM association (could be enhanced to support multiple)
+                        primary_analysis = analysis_repo.get_by_analysis_id(request.analysis_ids[0])
                         
-                        sbom_repo.create(**sbom_db_data)
-                        db_session.commit()
-                        logger.info(f"SBOM {sbom_id} stored in database")
-                    else:
-                        logger.warning(f"Analysis {request.analysis_ids[0]} not found in database - SBOM stored only in file system")
-                        
-                except Exception as db_e:
-                    logger.error(f"Failed to store SBOM in database: {db_e}")
-                    # Continue without database storage
+                        if primary_analysis:
+                            # Calculate component count
+                            total_components = sum(len(result.components) for result in analysis_results)
+                            
+                            sbom_db_data = {
+                                'sbom_id': sbom_id,
+                                'format': request.format,
+                                'spec_version': sbom_data.get('specVersion') or sbom_data.get('spec_version', '2.3'),
+                                'content': sbom_data,
+                                'name': sbom_data.get('name', f"SBOM-{sbom_id}"),
+                                'namespace': sbom_data.get('documentNamespace') or sbom_data.get('metadata', {}).get('component', {}).get('bom-ref', ''),
+                                'created_by': 'Perseus Platform v1.5.0',
+                                'component_count': total_components,
+                                'file_path': f"data/sboms/{sbom_id}.json",
+                                'analysis_id': primary_analysis.id
+                            }
+                            
+                            sbom_repo.create(**sbom_db_data)
+                            db_session.commit()
+                            logger.info(f"SBOM {sbom_id} stored in database")
+                        else:
+                            logger.warning(f"Analysis {request.analysis_ids[0]} not found in database - SBOM stored only in file system")
+                            
+                    except Exception as db_e:
+                        db_session.rollback()
+                        logger.error(f"Failed to store SBOM in database: {db_e}")
+                        # Continue without database storage
             
             # Record SBOM generation in metrics
             if self.metrics_collector:
@@ -541,13 +546,9 @@ class WorkflowEngine:
                 )
             
             raise
-        finally:
-            if db_session:
-                db_session.close()
     
     async def analyze_os(self, analysis_id: str, request: AnalysisRequest) -> None:
         """Analyze operating system"""
-        db_session = None
         try:
             self.active_analyses[analysis_id] = {
                 "status": "running",
@@ -557,11 +558,6 @@ class WorkflowEngine:
             }
             
             logger.info(f"Starting OS analysis {analysis_id}")
-            
-            # Create database record if database is available
-            if self.use_database:
-                db_session = next(get_db_session())
-                self._create_analysis_record(analysis_id, "os", request, db_session)
             
             # Record analysis start in metrics
             if self.metrics_collector:
@@ -576,35 +572,45 @@ class WorkflowEngine:
             # Set the analysis ID in the results
             results.analysis_id = analysis_id
             
-            # Run vulnerability scanning if enabled
-            if request.options and request.options.include_vulnerabilities:
-                await self._add_vulnerability_data(results, db_session)
+            # Store results in database if available
+            if self.use_database:
+                with get_db_for_task() as db_session:
+                    try:
+                        # Create analysis record
+                        self._create_analysis_record(analysis_id, "os", request, db_session)
+                        
+                        # Run vulnerability scanning if enabled
+                        if request.options and request.options.include_vulnerabilities:
+                            await self._add_vulnerability_data(results, db_session)
+                        
+                        # Store components
+                        if results.components:
+                            self._store_components_in_db(analysis_id, results.components, db_session)
+                        
+                        # Link vulnerabilities to components if vulnerability scanning was performed
+                        if hasattr(results, 'vulnerability_summary') and results.vulnerability_summary:
+                            linked_count = self._link_vulnerabilities_to_components(analysis_id, db_session)
+                            # Update metadata with correct vulnerability count
+                            if linked_count is not None and hasattr(results, 'metadata'):
+                                results.metadata.update({
+                                    'total_vulnerabilities': linked_count,
+                                    'raw_scan_vulnerabilities': results.metadata.get('total_vulnerabilities', 0)
+                                })
+                        
+                        # Update analysis completion
+                        self._update_analysis_completion(analysis_id, results, db_session)
+                        
+                        # Commit all changes
+                        db_session.commit()
+                        logger.info(f"Database transaction committed for analysis {analysis_id}")
+                        
+                    except Exception as db_e:
+                        db_session.rollback()
+                        logger.error(f"Database operation failed, rolled back: {db_e}")
+                        # Continue even if database fails
             
             # Store results in file system (for backward compatibility)
             self.storage.store_analysis_result(analysis_id, results)
-            
-            # Store results in database if available
-            if self.use_database and db_session:
-                # Store components
-                if results.components:
-                    self._store_components_in_db(analysis_id, results.components, db_session)
-                
-                # Link vulnerabilities to components if vulnerability scanning was performed
-                if hasattr(results, 'vulnerability_summary') and results.vulnerability_summary:
-                    linked_count = self._link_vulnerabilities_to_components(analysis_id, db_session)
-                    # Update metadata with correct vulnerability count
-                    if linked_count is not None and hasattr(results, 'metadata'):
-                        results.metadata.update({
-                            'total_vulnerabilities': linked_count,
-                            'raw_scan_vulnerabilities': results.metadata.get('total_vulnerabilities', 0)
-                        })
-                        # Store updated results
-                        self.storage.store_analysis_result(analysis_id, results)
-                
-                # Update analysis completion
-                self._update_analysis_completion(analysis_id, results, db_session)
-                
-                db_session.commit()
             
             self.active_analyses[analysis_id].update({
                 "status": "completed",
@@ -625,15 +631,16 @@ class WorkflowEngine:
             logger.error(f"OS analysis {analysis_id} failed: {e}")
             
             # Update database with failure if available
-            if self.use_database and db_session:
-                try:
-                    analysis_repo = AnalysisRepository(db_session)
-                    analysis = analysis_repo.get_by_analysis_id(analysis_id)
-                    if analysis:
-                        analysis_repo.update(analysis.id, status=AnalysisStatus.FAILED, errors=[str(e)])
-                        db_session.commit()
-                except Exception as db_e:
-                    logger.error(f"Failed to update database with error: {db_e}")
+            if self.use_database:
+                with get_db_for_task() as db_session:
+                    try:
+                        analysis_repo = AnalysisRepository(db_session)
+                        analysis = analysis_repo.get_by_analysis_id(analysis_id)
+                        if analysis:
+                            analysis_repo.update(analysis.id, status=AnalysisStatus.FAILED, errors=[str(e)])
+                            db_session.commit()
+                    except Exception as db_e:
+                        logger.error(f"Failed to update database with error: {db_e}")
             
             self.active_analyses[analysis_id].update({
                 "status": "failed",
@@ -647,13 +654,9 @@ class WorkflowEngine:
                     analysis_id, "os", None, 
                     success=False, components_found=0
                 )
-        finally:
-            if db_session:
-                db_session.close()
     
     async def analyze_docker(self, analysis_id: str, request: AnalysisRequest) -> None:
         """Analyze Docker images"""
-        db_session = None
         try:
             self.active_analyses[analysis_id] = {
                 "status": "running",
@@ -663,11 +666,6 @@ class WorkflowEngine:
             }
             
             logger.info(f"Starting Docker image analysis {analysis_id} for {request.location}")
-            
-            # Create database record if database is available
-            if self.use_database:
-                db_session = next(get_db_session())
-                self._create_analysis_record(analysis_id, "docker", request, db_session)
             
             # Record analysis start in metrics
             if self.metrics_collector:
@@ -682,35 +680,45 @@ class WorkflowEngine:
             # Set the analysis ID in the results
             results.analysis_id = analysis_id
             
-            # Run vulnerability scanning if enabled
-            if request.options and request.options.include_vulnerabilities:
-                await self._add_vulnerability_data(results, db_session)
+            # Store results in database if available
+            if self.use_database:
+                with get_db_for_task() as db_session:
+                    try:
+                        # Create analysis record
+                        self._create_analysis_record(analysis_id, "docker", request, db_session)
+                        
+                        # Run vulnerability scanning if enabled
+                        if request.options and request.options.include_vulnerabilities:
+                            await self._add_vulnerability_data(results, db_session)
+                        
+                        # Store components
+                        if results.components:
+                            self._store_components_in_db(analysis_id, results.components, db_session)
+                        
+                        # Link vulnerabilities to components if vulnerability scanning was performed
+                        if hasattr(results, 'vulnerability_summary') and results.vulnerability_summary:
+                            linked_count = self._link_vulnerabilities_to_components(analysis_id, db_session)
+                            # Update metadata with correct vulnerability count
+                            if linked_count is not None and hasattr(results, 'metadata'):
+                                results.metadata.update({
+                                    'total_vulnerabilities': linked_count,
+                                    'raw_scan_vulnerabilities': results.metadata.get('total_vulnerabilities', 0)
+                                })
+                        
+                        # Update analysis completion
+                        self._update_analysis_completion(analysis_id, results, db_session)
+                        
+                        # Commit all changes
+                        db_session.commit()
+                        logger.info(f"Database transaction committed for analysis {analysis_id}")
+                        
+                    except Exception as db_e:
+                        db_session.rollback()
+                        logger.error(f"Database operation failed, rolled back: {db_e}")
+                        # Continue even if database fails
             
             # Store results in file system (for backward compatibility)
             self.storage.store_analysis_result(analysis_id, results)
-            
-            # Store results in database if available
-            if self.use_database and db_session:
-                # Store components
-                if results.components:
-                    self._store_components_in_db(analysis_id, results.components, db_session)
-                
-                # Link vulnerabilities to components if vulnerability scanning was performed
-                if hasattr(results, 'vulnerability_summary') and results.vulnerability_summary:
-                    linked_count = self._link_vulnerabilities_to_components(analysis_id, db_session)
-                    # Update metadata with correct vulnerability count
-                    if linked_count is not None and hasattr(results, 'metadata'):
-                        results.metadata.update({
-                            'total_vulnerabilities': linked_count,
-                            'raw_scan_vulnerabilities': results.metadata.get('total_vulnerabilities', 0)
-                        })
-                        # Store updated results
-                        self.storage.store_analysis_result(analysis_id, results)
-                
-                # Update analysis completion
-                self._update_analysis_completion(analysis_id, results, db_session)
-                
-                db_session.commit()
             
             self.active_analyses[analysis_id].update({
                 "status": "completed",
@@ -731,15 +739,16 @@ class WorkflowEngine:
             logger.error(f"Docker image analysis {analysis_id} failed: {e}")
             
             # Update database with failure if available
-            if self.use_database and db_session:
-                try:
-                    analysis_repo = AnalysisRepository(db_session)
-                    analysis = analysis_repo.get_by_analysis_id(analysis_id)
-                    if analysis:
-                        analysis_repo.update(analysis.id, status=AnalysisStatus.FAILED, errors=[str(e)])
-                        db_session.commit()
-                except Exception as db_e:
-                    logger.error(f"Failed to update database with error: {db_e}")
+            if self.use_database:
+                with get_db_for_task() as db_session:
+                    try:
+                        analysis_repo = AnalysisRepository(db_session)
+                        analysis = analysis_repo.get_by_analysis_id(analysis_id)
+                        if analysis:
+                            analysis_repo.update(analysis.id, status=AnalysisStatus.FAILED, errors=[str(e)])
+                            db_session.commit()
+                    except Exception as db_e:
+                        logger.error(f"Failed to update database with error: {db_e}")
             
             self.active_analyses[analysis_id].update({
                 "status": "failed",
@@ -753,9 +762,6 @@ class WorkflowEngine:
                     analysis_id, "docker", None, 
                     success=False, components_found=0
                 )
-        finally:
-            if db_session:
-                db_session.close()
     
     def get_sbom(self, sbom_id: str) -> Optional[Dict[str, Any]]:
         """Get generated SBOM"""
@@ -1029,69 +1035,68 @@ class WorkflowEngine:
             components_with_vulns = 0
             linking_errors = []
             
-            # Use atomic transaction for linking
-            with db_session.begin():
-                for scan_result in scan_results:
-                    component_name = scan_result.get('component_name')
-                    vulnerabilities = scan_result.get('vulnerabilities', [])
-                    
-                    if vulnerabilities:
-                        components_with_vulns += 1
-                        total_vulns_in_scan += len(vulnerabilities)
-                        logger.debug(f"Component {component_name} has {len(vulnerabilities)} vulnerabilities in scan")
-                    
-                    # Find the corresponding component in the database
-                    component = comp_repo.get_by_analysis_and_name(analysis.id, component_name)
-                    if not component:
-                        if vulnerabilities:  # Only warn if component has vulnerabilities
-                            error_msg = f"Component {component_name} with {len(vulnerabilities)} vulnerabilities not found in database"
-                            logger.warning(error_msg)
-                            linking_errors.append(error_msg)
-                        continue
-                    
-                    # Update component vulnerability counts based on scan results
-                    component.vulnerability_count = len(vulnerabilities)
-                    component.critical_vulnerabilities = sum(
-                        1 for v in vulnerabilities 
-                        if isinstance(v, dict) and v.get('severity', '').lower() == 'critical'
-                        or hasattr(v, 'severity') and v.severity.lower() == 'critical'
-                    )
-                    component.high_vulnerabilities = sum(
-                        1 for v in vulnerabilities 
-                        if isinstance(v, dict) and v.get('severity', '').lower() == 'high'
-                        or hasattr(v, 'severity') and v.severity.lower() == 'high'
-                    )
-                    
-                    for vuln_data in vulnerabilities:
-                        vuln_id = vuln_data.get('id') if isinstance(vuln_data, dict) else getattr(vuln_data, 'id', None)
-                        if not vuln_id:
-                            error_msg = f"Vulnerability data missing ID: {vuln_data}"
-                            logger.warning(error_msg)
-                            linking_errors.append(error_msg)
-                            continue
-                            
-                        # Find the vulnerability in the database
-                        vulnerability = vuln_repo.get_by_vulnerability_id(vuln_id)
-                        if not vulnerability:
-                            error_msg = f"Vulnerability {vuln_id} not found in database"
-                            logger.warning(error_msg)
-                            linking_errors.append(error_msg)
-                            continue
-                            
-                        if vulnerability and component:
-                            try:
-                                # Add the vulnerability to the component's vulnerabilities relationship
-                                if vulnerability not in component.vulnerabilities:
-                                    component.vulnerabilities.append(vulnerability)
-                                    total_linked += 1
-                                    logger.debug(f"Linked vulnerability {vuln_id} to component {component.name}")
-                            except Exception as link_error:
-                                error_msg = f"Failed to link vulnerability {vuln_id} to component {component.name}: {link_error}"
-                                logger.error(error_msg)
-                                linking_errors.append(error_msg)
+            # Process scan results without nested transaction
+            for scan_result in scan_results:
+                component_name = scan_result.get('component_name')
+                vulnerabilities = scan_result.get('vulnerabilities', [])
                 
-                # Update analysis counts after linking
-                self._update_analysis_counts_from_components(analysis_id, db_session)
+                if vulnerabilities:
+                    components_with_vulns += 1
+                    total_vulns_in_scan += len(vulnerabilities)
+                    logger.debug(f"Component {component_name} has {len(vulnerabilities)} vulnerabilities in scan")
+                
+                # Find the corresponding component in the database
+                component = comp_repo.get_by_analysis_and_name(analysis.id, component_name)
+                if not component:
+                    if vulnerabilities:  # Only warn if component has vulnerabilities
+                        error_msg = f"Component {component_name} with {len(vulnerabilities)} vulnerabilities not found in database"
+                        logger.warning(error_msg)
+                        linking_errors.append(error_msg)
+                    continue
+                
+                # Update component vulnerability counts based on scan results
+                component.vulnerability_count = len(vulnerabilities)
+                component.critical_vulnerabilities = sum(
+                    1 for v in vulnerabilities 
+                    if isinstance(v, dict) and v.get('severity', '').lower() == 'critical'
+                    or hasattr(v, 'severity') and v.severity.lower() == 'critical'
+                )
+                component.high_vulnerabilities = sum(
+                    1 for v in vulnerabilities 
+                    if isinstance(v, dict) and v.get('severity', '').lower() == 'high'
+                    or hasattr(v, 'severity') and v.severity.lower() == 'high'
+                )
+                
+                for vuln_data in vulnerabilities:
+                    vuln_id = vuln_data.get('id') if isinstance(vuln_data, dict) else getattr(vuln_data, 'id', None)
+                    if not vuln_id:
+                        error_msg = f"Vulnerability data missing ID: {vuln_data}"
+                        logger.warning(error_msg)
+                        linking_errors.append(error_msg)
+                        continue
+                        
+                    # Find the vulnerability in the database
+                    vulnerability = vuln_repo.get_by_vulnerability_id(vuln_id)
+                    if not vulnerability:
+                        error_msg = f"Vulnerability {vuln_id} not found in database"
+                        logger.warning(error_msg)
+                        linking_errors.append(error_msg)
+                        continue
+                        
+                    if vulnerability and component:
+                        try:
+                            # Add the vulnerability to the component's vulnerabilities relationship
+                            if vulnerability not in component.vulnerabilities:
+                                component.vulnerabilities.append(vulnerability)
+                                total_linked += 1
+                                logger.debug(f"Linked vulnerability {vuln_id} to component {component.name}")
+                        except Exception as link_error:
+                            error_msg = f"Failed to link vulnerability {vuln_id} to component {component.name}: {link_error}"
+                            logger.error(error_msg)
+                            linking_errors.append(error_msg)
+            
+            # Update analysis counts after linking
+            self._update_analysis_counts_from_components(analysis_id, db_session)
             
             logger.info(f"Vulnerability linking summary: {total_vulns_in_scan} vulnerabilities in scan, {total_linked} successfully linked, {components_with_vulns} components had vulnerabilities")
             
@@ -1116,6 +1121,8 @@ class WorkflowEngine:
             
             # Calculate counts from components
             from sqlalchemy import func
+            from ..database.models import Component
+            
             vuln_counts = db_session.query(
                 func.sum(Component.vulnerability_count).label('total'),
                 func.sum(Component.critical_vulnerabilities).label('critical'),

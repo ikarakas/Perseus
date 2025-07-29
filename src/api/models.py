@@ -28,7 +28,6 @@ class AnalysisOptions(BaseModel):
     include_dev_dependencies: bool = Field(default=False, description="Include development dependencies")
     timeout_minutes: int = Field(default=30, description="Analysis timeout in minutes")
     docker_auth: Optional[Dict[str, str]] = Field(default=None, description="Docker registry authentication")
-    analyze_imports: bool = Field(default=False, description="Analyze import statements in source code (Java only)")
     include_vulnerabilities: bool = Field(default=True, description="Include vulnerability scanning")
 
 class AnalysisRequest(BaseModel):

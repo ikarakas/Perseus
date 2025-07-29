@@ -28,10 +28,11 @@ class AnalyzerFactory:
     
     def get_source_analyzer(self, language: Optional[Language], analyze_imports: bool = False):
         """Get source code analyzer for specified language"""
-        logger.info(f"Getting source analyzer - Language: {language}, analyze_imports: {analyze_imports}")
-        # Use JavaSourceAnalyzer if import analysis is requested for Java
-        if analyze_imports and language == Language.JAVA:
-            logger.info(f"Using Java analyzer with import analysis enabled")
+        logger.info(f"Getting source analyzer - Language: {language}")
+        
+        # Always use JavaSourceAnalyzer for Java to support POM/Gradle analysis
+        if language == Language.JAVA:
+            logger.info(f"Using Java analyzer for POM/Gradle analysis")
             return JavaSourceAnalyzer()
         elif self.use_syft:
             logger.info(f"Using Syft analyzer for source code analysis")
@@ -40,8 +41,6 @@ class AnalyzerFactory:
             # Legacy analyzers
             if language == Language.CPP or language == Language.C:
                 return CppSourceAnalyzer()
-            elif language == Language.JAVA:
-                return JavaSourceAnalyzer()
             else:
                 raise ValueError(f"Unsupported source language: {language}")
     

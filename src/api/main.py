@@ -194,11 +194,18 @@ async def get_detailed_vulnerability_scan(analysis_id: str, db: Session = Depend
                                 "vector_string": vuln.get("cvss_vector")
                             } if vuln.get("cvss_score") else None,
                             "cwe_ids": vuln.get("cwe_ids", []),
-                            "component_info": {
-                                "name": component.get("component_name"),
-                                "version": component.get("component_version"),
-                                "purl": component.get("purl")
-                            }
+                            "aliases": [],
+                            "exploit_info": None,
+                            "patches": [],
+                            "advisories": [],
+                            "affected_platforms": [],
+                            "affected_products": [],
+                            "mitigation": None,
+                            "technical_details": None,
+                            # Add component context for UI display
+                            "component_name": component.get("component_name"),
+                            "component_version": component.get("component_version"),
+                            "analysis_id": analysis_id
                         }
                         enhanced_vulnerabilities.append(enhanced_vuln)
                 
@@ -248,6 +255,22 @@ async def get_detailed_vulnerability_scan(analysis_id: str, db: Session = Depend
                 "mitigation": None,
                 "technical_details": None
             }
+            
+            # Add component context for UI display
+            logger.info(f"Getting component context for detailed vuln: {vuln.vulnerability_id}")
+            component_context = vuln_repo.get_vulnerability_component_context(vuln.vulnerability_id, analysis_id)
+            logger.info(f"Component context result for {vuln.vulnerability_id}: {len(component_context) if component_context else 0} items")
+            if component_context:
+                # Take the first component as primary context
+                primary_context = component_context[0]
+                enhanced_vuln["component_name"] = primary_context.get("component_name")
+                enhanced_vuln["component_version"] = primary_context.get("component_version")
+                enhanced_vuln["analysis_id"] = primary_context.get("analysis_id")
+                
+                # If there are multiple components, add a count
+                if len(component_context) > 1:
+                    enhanced_vuln["additional_components"] = len(component_context) - 1
+            
             enhanced_vulnerabilities.append(enhanced_vuln)
         
         return {
@@ -275,8 +298,35 @@ async def root():
 async def analyze_source(request: AnalysisRequest, background_tasks: BackgroundTasks):
     """Submit source code for analysis"""
     try:
+        # Validate path exists before creating analysis record
+        import os
+        source_path = request.location
+        
+        # Handle file:// prefixes if present
+        if source_path.startswith('file://'):
+            source_path = source_path[7:]
+        
+        # Normalize path
+        source_path = os.path.normpath(source_path)
+        
+        # Check if path exists
+        if not os.path.exists(source_path):
+            logger.warning(f"Source path does not exist: {source_path}")
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Source path does not exist: {source_path}"
+            )
+        
+        # Check if it's a file or directory (both are valid for source analysis)
+        if not (os.path.isfile(source_path) or os.path.isdir(source_path)):
+            logger.warning(f"Source path is not a valid file or directory: {source_path}")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Source path is not a valid file or directory: {source_path}"
+            )
+        
         analysis_id = str(uuid.uuid4())
-        logger.info(f"Starting source analysis {analysis_id} for {request.language}")
+        logger.info(f"Starting source analysis {analysis_id} for {request.language} at {source_path}")
         
         # Start analysis in background
         background_tasks.add_task(
@@ -290,6 +340,8 @@ async def analyze_source(request: AnalysisRequest, background_tasks: BackgroundT
             status="started",
             message="Source code analysis initiated"
         )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error starting source analysis: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -298,8 +350,35 @@ async def analyze_source(request: AnalysisRequest, background_tasks: BackgroundT
 async def analyze_binary(request: AnalysisRequest, background_tasks: BackgroundTasks):
     """Submit binary for analysis"""
     try:
+        # Validate binary path exists before creating analysis record
+        import os
+        binary_path = request.location
+        
+        # Handle file:// prefixes if present
+        if binary_path.startswith('file://'):
+            binary_path = binary_path[7:]
+        
+        # Normalize path
+        binary_path = os.path.normpath(binary_path)
+        
+        # Check if path exists
+        if not os.path.exists(binary_path):
+            logger.warning(f"Binary path does not exist: {binary_path}")
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Binary path does not exist: {binary_path}"
+            )
+        
+        # For binary analysis, it should be a file, not a directory
+        if not os.path.isfile(binary_path):
+            logger.warning(f"Binary path is not a valid file: {binary_path}")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Binary path must be a file, not a directory: {binary_path}"
+            )
+        
         analysis_id = str(uuid.uuid4())
-        logger.info(f"Starting binary analysis {analysis_id}")
+        logger.info(f"Starting binary analysis {analysis_id} for {binary_path}")
         
         # Start analysis in background
         background_tasks.add_task(
@@ -313,6 +392,8 @@ async def analyze_binary(request: AnalysisRequest, background_tasks: BackgroundT
             status="started",
             message="Binary analysis initiated"
         )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error starting binary analysis: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -718,10 +799,38 @@ async def delete_analysis(analysis_id: str, db: Session = Depends(get_db_session
             raise HTTPException(status_code=404, detail="Analysis not found")
         
         # Delete the analysis (this will cascade to related tables due to FK constraints)
-        analysis_repo.delete(analysis.id)
+        delete_result = analysis_repo.delete(analysis.id)
         
-        # Commit the transaction
-        db.commit()
+        if not delete_result:
+            raise HTTPException(status_code=500, detail="Failed to delete analysis from database")
+        
+        # Clean up orphaned vulnerabilities after analysis deletion
+        try:
+            from sqlalchemy import text
+            orphaned_cleanup_query = """
+            DELETE FROM vulnerabilities 
+            WHERE id IN (
+                SELECT v.id
+                FROM vulnerabilities v
+                LEFT JOIN component_vulnerabilities cv ON v.id = cv.vulnerability_id
+                WHERE cv.vulnerability_id IS NULL
+            )
+            """
+            result = db.execute(text(orphaned_cleanup_query))
+            orphaned_count = result.rowcount
+            if orphaned_count > 0:
+                logger.info(f"Cleaned up {orphaned_count} orphaned vulnerabilities")
+        except Exception as cleanup_error:
+            logger.warning(f"Failed to clean up orphaned vulnerabilities: {cleanup_error}")
+        
+        # Commit the transaction immediately after deletion and cleanup
+        try:
+            db.commit()
+            logger.info(f"Successfully committed deletion of analysis {analysis_id}")
+        except Exception as commit_error:
+            db.rollback()
+            logger.error(f"Failed to commit deletion of analysis {analysis_id}: {commit_error}")
+            raise HTTPException(status_code=500, detail=f"Failed to commit deletion: {str(commit_error)}")
         
         # Also clean up the analysis result files from filesystem
         try:
@@ -733,12 +842,14 @@ async def delete_analysis(analysis_id: str, db: Session = Depends(get_db_session
             for file_path in analysis_files:
                 if os.path.exists(file_path):
                     os.remove(file_path)
+                    logger.debug(f"Removed analysis file: {file_path}")
             
             # Clean up related SBOM files 
             sbom_files = glob.glob(f"data/sboms/*{analysis_id}*")
             for file_path in sbom_files:
                 if os.path.exists(file_path):
                     os.remove(file_path)
+                    logger.debug(f"Removed SBOM file: {file_path}")
                     
         except Exception as cleanup_error:
             logger.warning(f"Failed to clean up files for analysis {analysis_id}: {cleanup_error}")
@@ -754,6 +865,7 @@ async def delete_analysis(analysis_id: str, db: Session = Depends(get_db_session
     except HTTPException:
         raise
     except Exception as e:
+        db.rollback()
         logger.error(f"Error deleting analysis {analysis_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to delete analysis: {str(e)}")
 
@@ -762,19 +874,66 @@ async def delete_analysis(analysis_id: str, db: Session = Depends(get_db_session
 async def search_components(
     q: str = "",
     analysis_id: Optional[str] = None,
+    vulnerable_only: bool = False,
+    min_severity: Optional[str] = None,
+    component_type: Optional[str] = None,
     limit: int = 50,
     db: Session = Depends(get_db_session)
 ):
-    """Search components by name, description, or analysis ID"""
+    """Search components with multiple filters"""
     try:
+        logger.info(f"Component search params: q={q}, analysis_id={analysis_id}, vulnerable_only={vulnerable_only}, min_severity={min_severity}, component_type={component_type}")
+        
         component_repo = ComponentRepository(db)
         
+        # Start with base search
         if analysis_id:
             # Search by analysis ID (supports partial matching)
             components = component_repo.search_by_analysis_id(analysis_id, q, limit=limit)
         else:
             # Regular text search
             components = component_repo.search_components(q, limit=limit)
+        
+        logger.info(f"Found {len(components)} components before filtering")
+        
+        # Apply filters
+        filtered_components = []
+        for component in components:
+            # Filter by vulnerable_only
+            if vulnerable_only and component.vulnerability_count == 0:
+                continue
+                
+            # Filter by min_severity
+            if min_severity:
+                has_severity = False
+                if min_severity == "critical" and component.critical_vulnerabilities > 0:
+                    has_severity = True
+                elif min_severity == "high" and (component.critical_vulnerabilities > 0 or component.high_vulnerabilities > 0):
+                    has_severity = True
+                elif min_severity == "medium":
+                    # Calculate medium vulnerabilities as total - critical - high
+                    medium_vulns = component.vulnerability_count - component.critical_vulnerabilities - component.high_vulnerabilities
+                    if component.critical_vulnerabilities > 0 or component.high_vulnerabilities > 0 or medium_vulns > 0:
+                        has_severity = True
+                elif min_severity == "low" and component.vulnerability_count > 0:
+                    has_severity = True
+                    
+                if not has_severity:
+                    continue
+            
+            # Filter by component_type
+            if component_type:
+                # Handle enum comparison
+                comp_type_value = None
+                if hasattr(component, 'type') and component.type:
+                    comp_type_value = component.type.value if hasattr(component.type, 'value') else str(component.type)
+                
+                if comp_type_value != component_type:
+                    continue
+                
+            filtered_components.append(component)
+        
+        logger.info(f"After filtering: {len(filtered_components)} components remain")
         
         return {
             "components": [
@@ -788,9 +947,9 @@ async def search_components(
                     "description": c.description,
                     "analysis_id": c.analysis.analysis_id if c.analysis else str(c.analysis_id)
                 }
-                for c in components
+                for c in filtered_components
             ],
-            "total": len(components)
+            "total": len(filtered_components)
         }
     except Exception as e:
         logger.error(f"Error searching components: {e}")
@@ -960,6 +1119,11 @@ async def get_sbom_statistics(db: Session = Depends(get_db_session)):
 
 # Vulnerability Database Endpoints
 
+@app.get("/api/v1/test-search")
+async def test_search():
+    """Test endpoint to isolate search issue"""
+    return {"message": "Search test working"}
+
 @app.get("/api/v1/vulnerabilities")
 async def list_vulnerabilities(
     severity: Optional[str] = None,
@@ -969,34 +1133,59 @@ async def list_vulnerabilities(
     db: Session = Depends(get_db_session)
 ):
     """List vulnerabilities with optional filtering"""
+    logger.info(f"Entering list_vulnerabilities function with search={search}")
+    
     try:
+        logger.info(f"About to create vulnerability repository")
         vuln_repo = VulnerabilityRepository(db)
+        logger.info(f"Created vulnerability repository successfully")
         
-        # Get the active vulnerabilities based on filters
+        # Get the vulnerabilities based on filters - use simple methods only
         if search:
-            vulnerabilities = vuln_repo.search_active_vulnerabilities(search, limit=limit, offset=offset)
-            total_count = vuln_repo.count_search_active_vulnerabilities(search)
+            logger.info(f"Searching vulnerabilities with term: {search}")
+            vulnerabilities = vuln_repo.search_vulnerabilities(search, limit=limit, offset=offset)
+            total_count = vuln_repo.count_search_vulnerabilities(search)
         elif severity:
             from ..database.models import VulnerabilitySeverity
             severity_enum = VulnerabilitySeverity(severity.lower())
-            vulnerabilities = vuln_repo.get_active_vulnerabilities_by_severity(severity_enum, limit=limit, offset=offset)
-            total_count = vuln_repo.count_active_vulnerabilities_by_severity(severity_enum)
+            vulnerabilities = vuln_repo.get_by_severity(severity_enum, limit=limit, offset=offset)
+            total_count = vuln_repo.count_by_severity(severity_enum)
         else:
-            vulnerabilities = vuln_repo.get_active_vulnerabilities(limit=limit, offset=offset)
-            total_count = vuln_repo.count_active_vulnerabilities()
+            # Use simple query without joins
+            vulnerabilities = vuln_repo.get_all(limit=limit, offset=offset)
+            total_count = vuln_repo.count()
+        
+        # Format vulnerabilities 
+        formatted_vulns = []
+        for v in vulnerabilities:
+            vuln_data = {
+                "vulnerability_id": v.vulnerability_id,
+                "title": v.title,
+                "severity": v.severity.value if v.severity else None,
+                "cvss_score": v.cvss_score,
+                "published_date": v.published_date,
+                "description": v.description[:200] + "..." if v.description and len(v.description) > 200 else v.description
+            }
+            
+            # Add component and analysis context
+            logger.info(f"Getting component context for vulnerability: {v.vulnerability_id}")
+            component_context = vuln_repo.get_vulnerability_component_context(v.vulnerability_id)
+            logger.info(f"Component context result: {len(component_context) if component_context else 0} items")
+            if component_context:
+                # Take the first component as primary context
+                primary_context = component_context[0]
+                vuln_data["component_name"] = primary_context.get("component_name")
+                vuln_data["component_version"] = primary_context.get("component_version")
+                vuln_data["analysis_id"] = primary_context.get("analysis_id")
+                
+                # If there are multiple components, add a count
+                if len(component_context) > 1:
+                    vuln_data["additional_components"] = len(component_context) - 1
+                        
+            formatted_vulns.append(vuln_data)
         
         return {
-            "vulnerabilities": [
-                {
-                    "vulnerability_id": v.vulnerability_id,
-                    "title": v.title,
-                    "severity": v.severity.value if v.severity else None,
-                    "cvss_score": v.cvss_score,
-                    "published_date": v.published_date,
-                    "description": v.description[:200] + "..." if v.description and len(v.description) > 200 else v.description
-                }
-                for v in vulnerabilities
-            ],
+            "vulnerabilities": formatted_vulns,
             "total": total_count,
             "returned": len(vulnerabilities),
             "limit": limit,

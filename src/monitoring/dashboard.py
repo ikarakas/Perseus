@@ -136,6 +136,18 @@ class MonitoringDashboard:
                     .results {{ margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 4px; display: none; }}
                     .os-info {{ background: #e8f4fd; padding: 10px; border-radius: 4px; margin: 10px 0; border-left: 4px solid #3498db; }}
                     .component-breakdown {{ margin-left: 20px; }}
+                    .info-box {{ 
+                        background: #e8f5e8; 
+                        border: 1px solid #27ae60; 
+                        border-radius: 6px; 
+                        padding: 12px; 
+                        margin: 10px 0; 
+                        border-left: 4px solid #27ae60; 
+                    }}
+                    .info-box h4 {{ margin: 0 0 8px 0; color: #2c3e50; font-size: 14px; }}
+                    .info-box ul {{ margin: 5px 0; padding-left: 20px; }}
+                    .info-box li {{ margin: 2px 0; }}
+                    .info-box code {{ background: #f1f1f1; padding: 1px 4px; border-radius: 2px; font-family: monospace; }}
                 </style>
             </head>
             <body>
@@ -230,14 +242,27 @@ class MonitoringDashboard:
                                 </select>
                             </div>
                             
-                            <div class="form-group" id="importAnalysisGroup" style="display: block;">
-                                <label>
-                                    <input type="checkbox" id="analyzeImports" style="width: auto; margin-right: 10px;">
-                                    Analyze import statements (Java only)
-                                </label>
-                                <small style="display: block; color: #7f8c8d; margin-top: 5px;">
-                                    Detects libraries from import statements when build files are missing
-                                </small>
+                            <div class="info-box" id="javaInfo" style="display: block;">
+                                <h4>📋 Java Analysis Requirements</h4>
+                                <p><strong>Supported build files:</strong></p>
+                                <ul>
+                                    <li><code>pom.xml</code> (Maven)</li>
+                                    <li><code>build.gradle</code> or <code>build.gradle.kts</code> (Gradle)</li>
+                                </ul>
+                                <p><small>⚠️ Projects without these build files will have limited component detection.</small></p>
+                            </div>
+                            
+                            <div class="info-box" id="cppInfo" style="display: none;">
+                                <h4>🔧 C++ Analysis Requirements</h4>
+                                <p><strong>Supported build systems:</strong></p>
+                                <ul>
+                                    <li><code>CMakeLists.txt</code> (CMake)</li>
+                                    <li><code>Makefile</code>, <code>Makefile.am</code> (Make/Automake)</li>
+                                    <li><code>configure.ac</code> (Autoconf)</li>
+                                    <li><code>conanfile.txt</code> (Conan)</li>
+                                    <li><code>vcpkg.json</code> (vcpkg)</li>
+                                </ul>
+                                <p><small>⚠️ Also analyzes #include statements for additional dependencies.</small></p>
                             </div>
                             
                             <div class="form-group" id="locationGroup">
@@ -394,32 +419,31 @@ class MonitoringDashboard:
                         const dockerGroup = document.getElementById('dockerGroup');
                         const osGroup = document.getElementById('osGroup');
                         const osInfo = document.getElementById('osInfo');
-                        const importAnalysisGroup = document.getElementById('importAnalysisGroup');
                         
                         if (type === 'source') {{
                             languageGroup.style.display = 'block';
-                            importAnalysisGroup.style.display = 'block';
                             locationGroup.style.display = 'block';
                             dockerGroup.style.display = 'none';
                             osGroup.style.display = 'none';
                             osInfo.style.display = 'none';
+                            toggleLanguageInfo();
                         }} else if (type === 'binary') {{
                             languageGroup.style.display = 'none';
-                            importAnalysisGroup.style.display = 'none';
+                            hideLanguageInfo();
                             locationGroup.style.display = 'block';
                             dockerGroup.style.display = 'none';
                             osGroup.style.display = 'none';
                             osInfo.style.display = 'none';
                         }} else if (type === 'docker') {{
                             languageGroup.style.display = 'none';
-                            importAnalysisGroup.style.display = 'none';
+                            hideLanguageInfo();
                             locationGroup.style.display = 'none';
                             dockerGroup.style.display = 'block';
                             osGroup.style.display = 'none';
                             osInfo.style.display = 'none';
                         }} else if (type === 'os') {{
                             languageGroup.style.display = 'none';
-                            importAnalysisGroup.style.display = 'none';
+                            hideLanguageInfo();
                             locationGroup.style.display = 'none';
                             dockerGroup.style.display = 'none';
                             osGroup.style.display = 'block';
@@ -427,12 +451,32 @@ class MonitoringDashboard:
                         }}
                     }}
                     
+                    function toggleLanguageInfo() {{
+                        const language = document.getElementById('language').value;
+                        const javaInfo = document.getElementById('javaInfo');
+                        const cppInfo = document.getElementById('cppInfo');
+                        
+                        if (language === 'java') {{
+                            javaInfo.style.display = 'block';
+                            cppInfo.style.display = 'none';
+                        }} else if (language === 'c++') {{
+                            javaInfo.style.display = 'none';
+                            cppInfo.style.display = 'block';
+                        }}
+                    }}
+                    
+                    function hideLanguageInfo() {{
+                        const javaInfo = document.getElementById('javaInfo');
+                        const cppInfo = document.getElementById('cppInfo');
+                        javaInfo.style.display = 'none';
+                        cppInfo.style.display = 'none';
+                    }}
+                    
                     async function submitAnalysis() {{
                         const type = document.getElementById('analysisType').value;
                         const language = document.getElementById('language').value;
                         const location = document.getElementById('location').value;
                         const dockerImage = document.getElementById('dockerImage').value;
-                        const analyzeImports = document.getElementById('analyzeImports').checked;
                         
                         const payload = {{
                             type: type
@@ -444,7 +488,6 @@ class MonitoringDashboard:
                             // Always include options with vulnerability scanning enabled
                             payload.options = {{
                                 deep_scan: true,
-                                analyze_imports: analyzeImports,
                                 include_vulnerabilities: true
                             }};
                         }} else if (type === 'binary') {{
@@ -1077,6 +1120,12 @@ class MonitoringDashboard:
                             alert('Failed to download BOM data');
                         }}
                     }}
+                    
+                    // Add event listener for language dropdown to toggle info boxes
+                    document.getElementById('language').addEventListener('change', toggleLanguageInfo);
+                    
+                    // Initialize info boxes on page load
+                    toggleLanguageInfo();
                 </script>
             </body>
             </html>
