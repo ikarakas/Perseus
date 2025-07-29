@@ -72,42 +72,54 @@ class WorkflowEngine:
             return None
     
     def _update_analysis_completion(self, analysis_id: str, analysis_result: AnalysisResult, db: Session):
-        """Update analysis record with completion data"""
+        """Update analysis record with completion data using atomic count updates"""
         try:
             analysis_repo = AnalysisRepository(db)
             analysis = analysis_repo.get_by_analysis_id(analysis_id)
             
             if analysis:
-                # Calculate vulnerability counts from deduplicated components in database
-                component_repo = ComponentRepository(db)
-                stored_components = component_repo.session.query(component_repo.model).filter(
-                    component_repo.model.analysis_id == analysis.id
-                ).all()
+                # Use atomic transaction to ensure count consistency
+                with db.begin():
+                    # Calculate counts from actual database state
+                    from sqlalchemy import func
+                    
+                    # Get component count from database
+                    component_count = db.query(func.count(Component.id)).filter(
+                        Component.analysis_id == analysis.id
+                    ).scalar()
+                    
+                    # Get vulnerability counts from components
+                    vuln_counts = db.query(
+                        func.sum(Component.vulnerability_count).label('total'),
+                        func.sum(Component.critical_vulnerabilities).label('critical'),
+                        func.sum(Component.high_vulnerabilities).label('high')
+                    ).filter(
+                        Component.analysis_id == analysis.id
+                    ).first()
+                    
+                    total_vulnerabilities = int(vuln_counts.total or 0)
+                    critical_vulnerabilities = int(vuln_counts.critical or 0)
+                    high_vulnerabilities = int(vuln_counts.high or 0)
+                    
+                    completion_data = {
+                        'status': AnalysisStatus.COMPLETED,
+                        'completed_at': datetime.utcnow(),
+                        'component_count': component_count,
+                        'vulnerability_count': total_vulnerabilities,
+                        'critical_vulnerability_count': critical_vulnerabilities,
+                        'high_vulnerability_count': high_vulnerabilities,
+                        'duration_seconds': (datetime.utcnow() - analysis.started_at).total_seconds() if analysis.started_at else None
+                    }
+                    
+                    analysis_repo.update(analysis.id, **completion_data)
+                    
+                    # Log count validation
+                    logger.info(f"Analysis {analysis_id} completed with {component_count} components, {total_vulnerabilities} vulnerabilities")
                 
-                total_vulnerabilities = 0
-                critical_vulnerabilities = 0
-                high_vulnerabilities = 0
-                
-                # Use the actual stored components for consistent counting
-                for component in stored_components:
-                    total_vulnerabilities += component.vulnerability_count or 0
-                    critical_vulnerabilities += component.critical_vulnerabilities or 0
-                    high_vulnerabilities += component.high_vulnerabilities or 0
-                
-                completion_data = {
-                    'status': AnalysisStatus.COMPLETED,
-                    'completed_at': datetime.utcnow(),
-                    'component_count': len(analysis_result.components) if analysis_result.components else 0,
-                    'vulnerability_count': total_vulnerabilities,
-                    'critical_vulnerability_count': critical_vulnerabilities,
-                    'high_vulnerability_count': high_vulnerabilities,
-                    'duration_seconds': (datetime.utcnow() - analysis.started_at).total_seconds() if analysis.started_at else None
-                }
-                
-                analysis_repo.update(analysis.id, **completion_data)
                 return analysis
         except Exception as e:
             logger.error(f"Failed to update analysis completion: {e}")
+            db.rollback()
         return None
     
     def _store_components_in_db(self, analysis_id: str, components: List, db: Session):
@@ -987,7 +999,7 @@ class WorkflowEngine:
             raise
     
     def _link_vulnerabilities_to_components(self, analysis_id: str, db_session: Session) -> Optional[int]:
-        """Link stored vulnerabilities to components after both are in database"""
+        """Link stored vulnerabilities to components after both are in database with improved error handling"""
         try:
             analysis_repo = AnalysisRepository(db_session)
             comp_repo = ComponentRepository(db_session)
@@ -996,7 +1008,7 @@ class WorkflowEngine:
             analysis = analysis_repo.get_by_analysis_id(analysis_id)
             if not analysis:
                 logger.error(f"Analysis {analysis_id} not found for vulnerability linking")
-                return
+                return None
             
             # Get the last vulnerability scan for this analysis
             from ..database.repositories import VulnerabilityScanRepository
@@ -1005,7 +1017,7 @@ class WorkflowEngine:
             
             if not scans:
                 logger.warning(f"No vulnerability scans found for analysis {analysis_id}")
-                return
+                return 0
             
             latest_scan = scans[0]  # get_by_analysis_id returns results ordered by started_at desc
             scan_results = latest_scan.raw_results.get('scan_results', [])
@@ -1015,53 +1027,116 @@ class WorkflowEngine:
             total_vulns_in_scan = 0
             total_linked = 0
             components_with_vulns = 0
+            linking_errors = []
             
-            for scan_result in scan_results:
-                component_name = scan_result.get('component_name')
-                vulnerabilities = scan_result.get('vulnerabilities', [])
-                
-                if vulnerabilities:
-                    components_with_vulns += 1
-                    total_vulns_in_scan += len(vulnerabilities)
-                    logger.debug(f"Component {component_name} has {len(vulnerabilities)} vulnerabilities in scan")
-                
-                # Find the corresponding component in the database
-                component = comp_repo.get_by_analysis_and_name(analysis.id, component_name)
-                if not component:
-                    if vulnerabilities:  # Only warn if component has vulnerabilities
-                        logger.warning(f"Component {component_name} with {len(vulnerabilities)} vulnerabilities not found in database")
-                    continue
-                
-                for vuln_data in vulnerabilities:
-                    vuln_id = vuln_data.get('id') if isinstance(vuln_data, dict) else getattr(vuln_data, 'id', None)
-                    if not vuln_id:
-                        logger.warning(f"Vulnerability data missing ID: {vuln_data}")
+            # Use atomic transaction for linking
+            with db_session.begin():
+                for scan_result in scan_results:
+                    component_name = scan_result.get('component_name')
+                    vulnerabilities = scan_result.get('vulnerabilities', [])
+                    
+                    if vulnerabilities:
+                        components_with_vulns += 1
+                        total_vulns_in_scan += len(vulnerabilities)
+                        logger.debug(f"Component {component_name} has {len(vulnerabilities)} vulnerabilities in scan")
+                    
+                    # Find the corresponding component in the database
+                    component = comp_repo.get_by_analysis_and_name(analysis.id, component_name)
+                    if not component:
+                        if vulnerabilities:  # Only warn if component has vulnerabilities
+                            error_msg = f"Component {component_name} with {len(vulnerabilities)} vulnerabilities not found in database"
+                            logger.warning(error_msg)
+                            linking_errors.append(error_msg)
                         continue
-                        
-                    # Find the vulnerability in the database
-                    vulnerability = vuln_repo.get_by_vulnerability_id(vuln_id)
-                    if not vulnerability:
-                        logger.warning(f"Vulnerability {vuln_id} not found in database")
-                        continue
-                        
-                    if vulnerability and component:
-                        try:
-                            # Add the vulnerability to the component's vulnerabilities relationship
-                            if vulnerability not in component.vulnerabilities:
-                                component.vulnerabilities.append(vulnerability)
-                                total_linked += 1
-                                logger.debug(f"Linked vulnerability {vuln_id} to component {component.name}")
-                        except Exception as link_error:
-                            logger.error(f"Failed to link vulnerability {vuln_id} to component {component.name}: {link_error}")
+                    
+                    # Update component vulnerability counts based on scan results
+                    component.vulnerability_count = len(vulnerabilities)
+                    component.critical_vulnerabilities = sum(
+                        1 for v in vulnerabilities 
+                        if isinstance(v, dict) and v.get('severity', '').lower() == 'critical'
+                        or hasattr(v, 'severity') and v.severity.lower() == 'critical'
+                    )
+                    component.high_vulnerabilities = sum(
+                        1 for v in vulnerabilities 
+                        if isinstance(v, dict) and v.get('severity', '').lower() == 'high'
+                        or hasattr(v, 'severity') and v.severity.lower() == 'high'
+                    )
+                    
+                    for vuln_data in vulnerabilities:
+                        vuln_id = vuln_data.get('id') if isinstance(vuln_data, dict) else getattr(vuln_data, 'id', None)
+                        if not vuln_id:
+                            error_msg = f"Vulnerability data missing ID: {vuln_data}"
+                            logger.warning(error_msg)
+                            linking_errors.append(error_msg)
+                            continue
+                            
+                        # Find the vulnerability in the database
+                        vulnerability = vuln_repo.get_by_vulnerability_id(vuln_id)
+                        if not vulnerability:
+                            error_msg = f"Vulnerability {vuln_id} not found in database"
+                            logger.warning(error_msg)
+                            linking_errors.append(error_msg)
+                            continue
+                            
+                        if vulnerability and component:
+                            try:
+                                # Add the vulnerability to the component's vulnerabilities relationship
+                                if vulnerability not in component.vulnerabilities:
+                                    component.vulnerabilities.append(vulnerability)
+                                    total_linked += 1
+                                    logger.debug(f"Linked vulnerability {vuln_id} to component {component.name}")
+                            except Exception as link_error:
+                                error_msg = f"Failed to link vulnerability {vuln_id} to component {component.name}: {link_error}"
+                                logger.error(error_msg)
+                                linking_errors.append(error_msg)
+                
+                # Update analysis counts after linking
+                self._update_analysis_counts_from_components(analysis_id, db_session)
             
             logger.info(f"Vulnerability linking summary: {total_vulns_in_scan} vulnerabilities in scan, {total_linked} successfully linked, {components_with_vulns} components had vulnerabilities")
             
-            logger.info(f"Vulnerability linking completed for analysis {analysis_id}")
+            if linking_errors:
+                logger.warning(f"Vulnerability linking completed with {len(linking_errors)} errors for analysis {analysis_id}")
+            
             return total_linked
             
         except Exception as e:
             logger.error(f"Failed to link vulnerabilities to components: {e}")
+            db_session.rollback()
             return None
+    
+    def _update_analysis_counts_from_components(self, analysis_id: str, db_session: Session):
+        """Update analysis counts based on component aggregation"""
+        try:
+            analysis_repo = AnalysisRepository(db_session)
+            analysis = analysis_repo.get_by_analysis_id(analysis_id)
+            
+            if not analysis:
+                return
+            
+            # Calculate counts from components
+            from sqlalchemy import func
+            vuln_counts = db_session.query(
+                func.sum(Component.vulnerability_count).label('total'),
+                func.sum(Component.critical_vulnerabilities).label('critical'),
+                func.sum(Component.high_vulnerabilities).label('high')
+            ).filter(
+                Component.analysis_id == analysis.id
+            ).first()
+            
+            # Update analysis with calculated counts
+            update_data = {
+                'vulnerability_count': int(vuln_counts.total or 0),
+                'critical_vulnerability_count': int(vuln_counts.critical or 0),
+                'high_vulnerability_count': int(vuln_counts.high or 0)
+            }
+            
+            analysis_repo.update(analysis.id, **update_data)
+            logger.debug(f"Updated analysis {analysis_id} counts: {update_data}")
+            
+        except Exception as e:
+            logger.error(f"Failed to update analysis counts from components: {e}")
+            raise
     
     def validate_sbom(self, sbom_data: Dict[str, Any]) -> Dict[str, Any]:
         """Validate SBOM format"""

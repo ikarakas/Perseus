@@ -19,7 +19,7 @@ from ..database import get_db_session
 from ..database.models import SBOM, Analysis
 from ..database.repositories import (
     AnalysisRepository, ComponentRepository, SBOMRepository,
-    VulnerabilityRepository, VulnerabilityScanRepository
+    VulnerabilityRepository, VulnerabilityScanRepository, CountValidator
 )
 from ..common.version import VersionConfig
 
@@ -58,6 +58,10 @@ class DatabaseDashboard:
                 vuln_stats = vuln_repo.get_vulnerability_statistics()
                 scan_stats = scan_repo.get_scan_statistics()
                 
+                # Get count validation statistics
+                count_validator = CountValidator(db)
+                count_stats = count_validator.get_count_statistics()
+                
                 # Get top vulnerable components
                 top_vulnerable = component_repo.get_top_vulnerable_components(limit=10)
                 
@@ -69,6 +73,7 @@ class DatabaseDashboard:
                     "sbom_statistics": sbom_stats,
                     "vulnerability_statistics": vuln_stats,
                     "scan_statistics": scan_stats,
+                    "count_statistics": count_stats,
                     "top_vulnerable_components": top_vulnerable
                 }
             except Exception as e:

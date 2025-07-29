@@ -29,8 +29,8 @@ from ..telemetry.storage import TelemetryStorage
 from .cicd import router as cicd_router
 from ..database import init_database, get_db_session, test_connection
 from ..database.repositories import (
-    AnalysisRepository, ComponentRepository, SBOMRepository, 
-    VulnerabilityRepository, VulnerabilityScanRepository
+    AnalysisRepository, ComponentRepository, SBOMRepository,
+    VulnerabilityRepository, VulnerabilityScanRepository, CountValidator
 )
 
 # Configure logging
@@ -1119,4 +1119,179 @@ async def list_vulnerability_scans(
         }
     except Exception as e:
         logger.error(f"Error listing vulnerability scans: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Count validation endpoints
+@app.get("/api/v1/counts/validate/{analysis_id}")
+async def validate_analysis_counts(
+    analysis_id: str,
+    db: Session = Depends(get_db_session)
+):
+    """Validate count consistency for a specific analysis"""
+    try:
+        validator = CountValidator(db)
+        result = validator.validate_analysis_counts(analysis_id)
+        return result
+    except Exception as e:
+        logger.error(f"Failed to validate analysis counts: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v1/counts/fix/{analysis_id}")
+async def fix_analysis_counts(
+    analysis_id: str,
+    db: Session = Depends(get_db_session)
+):
+    """Fix count discrepancies for a specific analysis"""
+    try:
+        validator = CountValidator(db)
+        result = validator.fix_analysis_counts(analysis_id)
+        return result
+    except Exception as e:
+        logger.error(f"Failed to fix analysis counts: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/counts/validate/all")
+async def validate_all_analysis_counts(
+    db: Session = Depends(get_db_session)
+):
+    """Validate count consistency for all analyses"""
+    try:
+        validator = CountValidator(db)
+        result = validator.validate_all_analysis_counts()
+        return result
+    except Exception as e:
+        logger.error(f"Failed to validate all analysis counts: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v1/counts/fix/all")
+async def fix_all_analysis_counts(
+    db: Session = Depends(get_db_session)
+):
+    """Fix count discrepancies for all analyses"""
+    try:
+        validator = CountValidator(db)
+        result = validator.fix_all_analysis_counts()
+        return result
+    except Exception as e:
+        logger.error(f"Failed to fix all analysis counts: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v1/counts/cleanup/orphans")
+async def cleanup_orphan_vulnerabilities(
+    db: Session = Depends(get_db_session)
+):
+    """Clean up orphan vulnerabilities not linked to any components"""
+    try:
+        validator = CountValidator(db)
+        result = validator.cleanup_orphan_vulnerabilities()
+        return result
+    except Exception as e:
+        logger.error(f"Failed to cleanup orphan vulnerabilities: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/counts/statistics")
+async def get_count_statistics(
+    db: Session = Depends(get_db_session)
+):
+    """Get comprehensive count statistics and data quality metrics"""
+    try:
+        validator = CountValidator(db)
+        result = validator.get_count_statistics()
+        return result
+    except Exception as e:
+        logger.error(f"Failed to get count statistics: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/counts/validate/components")
+async def validate_component_vulnerability_counts(
+    db: Session = Depends(get_db_session)
+):
+    """Validate that component vulnerability counts match actual relationships"""
+    try:
+        validator = CountValidator(db)
+        result = validator.validate_component_vulnerability_relationships()
+        return result
+    except Exception as e:
+        logger.error(f"Failed to validate component vulnerability counts: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v1/counts/fix/components")
+async def fix_component_vulnerability_counts(
+    db: Session = Depends(get_db_session)
+):
+    """Fix component vulnerability count discrepancies"""
+    try:
+        validator = CountValidator(db)
+        result = validator.fix_component_vulnerability_counts()
+        return result
+    except Exception as e:
+        logger.error(f"Failed to fix component vulnerability counts: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Count maintenance endpoints
+@app.get("/api/v1/counts/maintenance/status")
+async def get_count_maintenance_status():
+    """Get the status of the count maintenance service"""
+    try:
+        from ..monitoring.count_maintenance import get_count_maintenance_status
+        return get_count_maintenance_status()
+    except Exception as e:
+        logger.error(f"Failed to get count maintenance status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v1/counts/maintenance/start")
+async def start_count_maintenance():
+    """Start the count maintenance service"""
+    try:
+        from ..monitoring.count_maintenance import start_count_maintenance
+        start_count_maintenance()
+        return {"message": "Count maintenance service started"}
+    except Exception as e:
+        logger.error(f"Failed to start count maintenance: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v1/counts/maintenance/stop")
+async def stop_count_maintenance():
+    """Stop the count maintenance service"""
+    try:
+        from ..monitoring.count_maintenance import stop_count_maintenance
+        stop_count_maintenance()
+        return {"message": "Count maintenance service stopped"}
+    except Exception as e:
+        logger.error(f"Failed to stop count maintenance: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v1/counts/maintenance/trigger-validation")
+async def trigger_count_validation():
+    """Manually trigger count validation"""
+    try:
+        from ..monitoring.count_maintenance import trigger_count_validation
+        result = trigger_count_validation()
+        return result
+    except Exception as e:
+        logger.error(f"Failed to trigger count validation: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v1/counts/maintenance/trigger-cleanup")
+async def trigger_count_cleanup():
+    """Manually trigger orphan cleanup"""
+    try:
+        from ..monitoring.count_maintenance import trigger_count_cleanup
+        result = trigger_count_cleanup()
+        return result
+    except Exception as e:
+        logger.error(f"Failed to trigger count cleanup: {e}")
         raise HTTPException(status_code=500, detail=str(e))

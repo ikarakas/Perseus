@@ -8,6 +8,7 @@ from .analysis import AnalysisRepository
 from .component import ComponentRepository
 from .sbom import SBOMRepository
 from .vulnerability import VulnerabilityRepository, VulnerabilityScanRepository
+from .count_validator import CountValidator
 
 __all__ = [
     'BaseRepository',
@@ -15,5 +16,6 @@ __all__ = [
     'ComponentRepository',
     'SBOMRepository',
     'VulnerabilityRepository',
-    'VulnerabilityScanRepository'
+    'VulnerabilityScanRepository',
+    'CountValidator'
 ]
