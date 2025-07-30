@@ -210,7 +210,7 @@ class TelemetryTransport:
             self.agent_id,
             {
                 "metadata": {
-                    "agent_version": "1.5.0",
+                    "agent_version": "1.6.0",
                     "hostname": socket.gethostname(),
                     "platform": sys.platform
                 }

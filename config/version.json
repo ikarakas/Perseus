@@ -1,10 +1,10 @@
 {
   "version": {
     "major": 1,
-    "minor": 5,
+    "minor": 6,
     "revision": 0,
     "patch": 0,
-    "string": "1.5.0"
+    "string": "1.6.0"
   },
   "classification": {
     "level": "NOT CLASSIFIED",
@@ -12,7 +12,7 @@
     "color": "#00FF00"
   },
   "build": {
-    "timestamp": "2025-01-27T19:00:00Z",
+    "timestamp": "2025-07-30T19:00:00Z",
     "environment": "production"
   }
 }
