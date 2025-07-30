@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: perseus
+  labels:
+    name: perseus
+    app.kubernetes.io/name: perseus
+    app.kubernetes.io/component: sbom-platform
