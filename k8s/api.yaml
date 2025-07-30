@@ -1,0 +1,145 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: perseus-config
+  namespace: perseus
+data:
+  DATABASE_URL: "postgresql://sbom_user:sbom_password@postgres:5432/sbom_platform"
+  PERSEUS_DB_HOST: "postgres"
+  PERSEUS_DB_PORT: "5432"
+  PERSEUS_DB_NAME: "sbom_platform"
+  PERSEUS_DB_USER: "sbom_user"
+  PERSEUS_DB_PASSWORD: "sbom_password"
+  ENVIRONMENT: "production"
+  LOG_LEVEL: "INFO"
+  TELEMETRY_ENABLED: "true"
+  CLASSIFICATION_LEVEL: "UNCLASSIFIED"
+  VERSION: "1.6.0"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: perseus-api
+  namespace: perseus
+  labels:
+    app: perseus-api
+    app.kubernetes.io/name: perseus
+    app.kubernetes.io/component: api
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: perseus-api
+  template:
+    metadata:
+      labels:
+        app: perseus-api
+    spec:
+      initContainers:
+      - name: wait-for-postgres
+        image: postgres:15-alpine
+        command:
+        - /bin/sh
+        - -c
+        - |
+          until pg_isready -h postgres -p 5432 -U sbom_user; do
+            echo "Waiting for PostgreSQL to be ready..."
+            sleep 2
+          done
+          echo "PostgreSQL is ready!"
+      containers:
+      - name: perseus-api
+        image: sbom-sbom-platform:latest
+        imagePullPolicy: Never  # Use local image for development
+        ports:
+        - containerPort: 8000
+          name: http
+        envFrom:
+        - configMapRef:
+            name: perseus-config
+        env:
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: POSTGRES_PASSWORD
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        volumeMounts:
+        - name: app-data
+          mountPath: /app/data
+        - name: telemetry-data
+          mountPath: /app/telemetry_data
+      volumes:
+      - name: app-data
+        persistentVolumeClaim:
+          claimName: perseus-data
+      - name: telemetry-data
+        persistentVolumeClaim:
+          claimName: perseus-telemetry
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: perseus-data
+  namespace: perseus
+spec:
+  accessModes:
+  - ReadWriteMany
+  resources:
+    requests:
+      storage: 5Gi
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: perseus-telemetry
+  namespace: perseus
+spec:
+  accessModes:
+  - ReadWriteMany
+  resources:
+    requests:
+      storage: 2Gi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: perseus-api
+  namespace: perseus
+  labels:
+    app: perseus-api
+spec:
+  ports:
+  - port: 8000
+    targetPort: 8000
+    name: http
+  selector:
+    app: perseus-api
+  type: ClusterIP

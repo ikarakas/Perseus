@@ -1,0 +1,83 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: perseus-background-jobs
+  namespace: perseus
+  labels:
+    app: perseus-background-jobs
+    app.kubernetes.io/name: perseus
+    app.kubernetes.io/component: background-jobs
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: perseus-background-jobs
+  template:
+    metadata:
+      labels:
+        app: perseus-background-jobs
+    spec:
+      initContainers:
+      - name: wait-for-postgres
+        image: postgres:15-alpine
+        command:
+        - /bin/sh
+        - -c
+        - |
+          until pg_isready -h postgres -p 5432 -U sbom_user; do
+            echo "Waiting for PostgreSQL to be ready..."
+            sleep 2
+          done
+          echo "PostgreSQL is ready!"
+      containers:
+      - name: background-jobs
+        image: sbom-sbom-platform:latest
+        imagePullPolicy: Never  # Use local image for development
+        command: ["/bin/sh"]
+        args:
+        - -c
+        - |
+          echo "Starting background job processor..."
+          # Background job processing logic would go here
+          # For now, just keep the container running
+          tail -f /dev/null
+        envFrom:
+        - configMapRef:
+            name: perseus-config
+        env:
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: POSTGRES_PASSWORD
+        - name: JOB_TYPE
+          value: "background-processor"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        volumeMounts:
+        - name: app-data
+          mountPath: /app/data
+        - name: telemetry-data
+          mountPath: /app/telemetry_data
+        # Simple health check since this is a background processor
+        livenessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - ps aux | grep -v grep | grep tail || exit 1
+          initialDelaySeconds: 30
+          periodSeconds: 30
+      volumes:
+      - name: app-data
+        persistentVolumeClaim:
+          claimName: perseus-data
+      - name: telemetry-data
+        persistentVolumeClaim:
+          claimName: perseus-telemetry

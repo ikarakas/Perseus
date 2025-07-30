@@ -1,0 +1,64 @@
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: perseus-ingress
+  namespace: perseus
+  labels:
+    app.kubernetes.io/name: perseus
+    app.kubernetes.io/component: ingress
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    # Optional: Enable TLS
+    # cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  # Optional: TLS configuration
+  # tls:
+  # - hosts:
+  #   - perseus.yourdomain.com
+  #   secretName: perseus-tls
+  rules:
+  - host: perseus.local  # Change to your domain
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: perseus-api
+            port:
+              number: 8000
+
+---
+# Alternative: LoadBalancer service (for cloud environments)
+apiVersion: v1
+kind: Service
+metadata:
+  name: perseus-loadbalancer
+  namespace: perseus
+  labels:
+    app: perseus-api
+    app.kubernetes.io/name: perseus
+    app.kubernetes.io/component: loadbalancer
+  annotations:
+    # Cloud-specific annotations (uncomment as needed)
+    # AWS
+    # service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+    # GCP
+    # cloud.google.com/load-balancer-type: "External"
+    # Azure
+    # service.beta.kubernetes.io/azure-load-balancer-internal: "false"
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 8080
+    targetPort: 8000
+    name: http
+  # - port: 443
+  #   targetPort: 8000
+  #   name: https
+  selector:
+    app: perseus-api
