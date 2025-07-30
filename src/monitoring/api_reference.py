@@ -146,7 +146,7 @@ def setup_api_reference_routes(app: FastAPI):
                     <h1>🔗 API Reference & Useful Links</h1>
                     <p>Complete API documentation and platform resources</p>
                     <div style="font-size: 12px; opacity: 0.8; margin-top: 10px;">
-                        BOM Generation - by I. KARAKAS | Version: {version_string}
+                        Perseus SBOM Platform | Version: {version_string}
                     </div>
                     <div style="font-size: 11px; opacity: 0.6; margin-top: 5px;">
                         Build: {build_info['timestamp'][:10]} | Environment: {build_info['environment']}

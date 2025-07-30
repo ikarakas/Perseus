@@ -156,9 +156,9 @@ class MonitoringDashboard:
                 <div class="header">
                     <div class="container">
                         <h1>🛡️ SBOM Platform Dashboard</h1>
-                        <p>Bill of Materials Generation & Analysis</p>
+                        <p>Software Bill of Materials Generation & Vulnerability Analysis</p>
                         <div style="font-size: 12px; opacity: 0.8; margin-top: 10px;">
-                            BOM Generation - by I. KARAKAS | Version: {version_string}
+                            Perseus SBOM Platform | Version: {version_string}
                         </div>
                         <div style="font-size: 11px; opacity: 0.6; margin-top: 5px;">
                             Build: {build_info['timestamp'][:10]} | Environment: {build_info['environment']}
