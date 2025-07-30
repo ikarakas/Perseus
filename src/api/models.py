@@ -17,6 +17,14 @@ class Language(str, Enum):
     CPP = "c++"
     JAVA = "java"
     C = "c"
+    PYTHON = "python"
+    JAVASCRIPT = "javascript"
+    GO = "go"
+    RUST = "rust"
+    PHP = "php"
+    TYPESCRIPT = "typescript"
+    KOTLIN = "kotlin"
+    SWIFT = "swift"
 
 class SBOMFormat(str, Enum):
     SPDX = "spdx"
