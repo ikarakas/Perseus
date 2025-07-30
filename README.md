@@ -10,7 +10,7 @@
 
 **Comprehensive Software Bill of Materials (SBOM) generation and vulnerability management platform for enterprise environments**
 
-[Features](#features) • [Architecture](#architecture) • [Quick Start](#quick-start) • [API Reference](#api-reference) • [Deployment](#deployment)
+[Features](#features) • [Architecture](#architecture) • [Quick Start](#quick-start) • [API Reference](#api-reference) • [Deployment](#deployment) • [Kubernetes](#️-kubernetes-deployment)
 
 </div>
 
@@ -107,6 +107,20 @@ graph TB
 
 ## 🚀 Quick Start
 
+### Enhanced Makefile Commands
+
+Perseus includes a comprehensive Makefile for easy management:
+
+```bash
+make help         # Show all available commands
+make dev          # Start development environment
+make k8s-deploy   # Deploy to Kubernetes
+make status       # Check system status
+make test         # Run verification tests
+make help-dev     # Show development commands
+make help-k8s     # Show Kubernetes commands
+```
+
 ### Vulnerability Database Setup
 
 **Important**: Update the vulnerability database before first use:
@@ -130,12 +144,12 @@ grype db update
    ```bash
    git clone https://github.com/ikarakas/Perseus.git
    cd Perseus
-   docker-compose -f docker-compose-simple.yml up -d
+   make dev  # Starts development environment
    ```
 
 2. **Access the dashboard:**
    ```bash
-   open http://localhost:8080/dashboard
+   open http://localhost:8000/dashboard
    ```
 
 3. **Analyze your first project:**
@@ -168,7 +182,7 @@ grype db update
 
 3. **Start the platform:**
    ```bash
-   python -m uvicorn src.api.main:app --host 0.0.0.0 --port 8080
+   python -m uvicorn src.api.main:app --host 0.0.0.0 --port 8000
    ```
 
 ---
@@ -560,13 +574,28 @@ curl -X POST http://localhost:8080/sbom/generate \
 
 ### Production Deployment
 
-1. **Start Services (Simple Setup):**
+Perseus supports multiple deployment tiers:
+
+#### 1. **Docker Compose (Development/Testing)**
    ```bash
-   # Start with Docker Compose (recommended)
-   docker-compose -f docker-compose-simple.yml up -d
+   make dev         # Start development environment
+   make dev-clean   # Stop and clean development environment
+   ```
+
+#### 2. **Kubernetes (Production)**
+   ```bash
+   make k8s-deploy  # Deploy to Kubernetes
+   make k8s-status  # Check deployment status
+   make k8s-clean   # Remove Kubernetes deployment
+   ```
+
+#### 3. **Quick Switching Between Environments**
+   ```bash
+   # Switch from Kubernetes to Docker
+   make k8s-clean && make dev
    
-   # Or use full Docker Compose
-   docker-compose up -d
+   # Switch from Docker to Kubernetes
+   make dev-clean && make k8s-deploy
    ```
 
 2. **Optional: Advanced Configuration**
@@ -583,10 +612,10 @@ curl -X POST http://localhost:8080/sbom/generate \
 3. **Verify Installation:**
    ```bash
    # Check if the platform is running
-   curl http://localhost:8080/
+   curl http://localhost:8000/
    
    # Access the dashboard
-   open http://localhost:8080/dashboard
+   open http://localhost:8000/dashboard
    ```
 
 ### Remote Agent Deployment
@@ -606,6 +635,45 @@ curl -X POST http://localhost:8080/sbom/generate \
    ```bash
    ssh user@target-host "cd telemetry-agent && python agent.py"
    ```
+
+---
+
+## ☸️ Kubernetes Deployment
+
+Perseus includes production-ready Kubernetes manifests for high-availability deployments:
+
+### Architecture
+- **3 API replicas** - Load balanced, auto-healing
+- **2 Background job processors** - Parallel task processing
+- **PostgreSQL StatefulSet** - Persistent data storage
+- **Automatic restarts** - Self-healing on failures
+
+### Quick Commands
+```bash
+# Deploy to Kubernetes
+make k8s-deploy
+
+# Check status
+make k8s-status
+
+# View logs
+make k8s-logs
+
+# Scale deployments
+make k8s-scale
+
+# Access via port-forward
+make k8s-port-forward  # Available at localhost:8001
+
+# Database operations
+make k8s-db-backup     # Backup database
+make k8s-db-shell      # PostgreSQL shell
+```
+
+### Requirements
+- Kubernetes cluster (Docker Desktop, Minikube, or cloud)
+- kubectl configured
+- 4GB RAM minimum
 
 ---
 
@@ -709,7 +777,10 @@ python -m pytest tests/
 python -m pytest tests/performance/
 
 # Start development server
-python -m uvicorn src.api.main:app --reload
+make dev
+
+# Or run directly
+python -m uvicorn src.api.main:app --reload --port 8000
 
 # Run debug agent
 python debug-agent/debug_agent.py
