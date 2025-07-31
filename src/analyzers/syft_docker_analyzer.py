@@ -166,25 +166,62 @@ class SyftDockerAnalyzer(SyftAnalyzer):
             logger.info(f"Running Syft Docker command: {' '.join(cmd)}")
             
             # Execute Syft
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=timeout,
-                env=os.environ.copy()  # Include any Docker auth env vars
-            )
+            try:
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout,
+                    env=os.environ.copy()  # Include any Docker auth env vars
+                )
+            except FileNotFoundError:
+                logger.error(f"Syft binary not found at: {self.syft_path}")
+                raise RuntimeError(f"Syft binary not found at: {self.syft_path}. Please ensure Syft is installed and accessible.")
             
             if result.returncode != 0:
-                logger.error(f"Syft Docker command failed: {result.stderr}")
+                # Combine both stderr and stdout to capture all error messages
+                error_msg = ""
+                if result.stderr:
+                    error_msg = result.stderr.strip()
+                if result.stdout and (not error_msg or error_msg == ""):
+                    error_msg = result.stdout.strip()
+                
+                # If still no error message, provide a generic one
+                if not error_msg:
+                    error_msg = f"Command failed with return code {result.returncode}"
+                
+                logger.error(f"Syft Docker command failed: {error_msg}")
+                logger.debug(f"Full stderr: {result.stderr}")
+                logger.debug(f"Full stdout: {result.stdout}")
+                
                 # Check for common Docker errors
-                if 'no such image' in result.stderr.lower():
+                error_lower = error_msg.lower()
+                if 'manifest unknown' in error_lower or 'manifest not found' in error_lower:
                     raise RuntimeError(f"Docker image not found: {image_ref}")
-                elif 'unauthorized' in result.stderr.lower():
+                elif 'not found: manifest unknown' in error_lower:
+                    raise RuntimeError(f"Docker image not found: {image_ref}")
+                elif 'unauthorized' in error_lower:
                     raise RuntimeError(f"Docker authentication failed for: {image_ref}")
-                elif 'timeout' in result.stderr.lower():
+                elif 'timeout' in error_lower:
                     raise RuntimeError(f"Docker pull timeout for: {image_ref}")
+                elif 'could not determine source' in error_lower:
+                    # Extract the Docker-specific error
+                    if 'docker:' in error_lower:
+                        docker_error_start = error_lower.find('docker:')
+                        docker_error_end = error_lower.find('\n', docker_error_start)
+                        if docker_error_end == -1:
+                            docker_error_end = len(error_lower)
+                        docker_error = error_msg[docker_error_start:docker_error_end].strip()
+                        raise RuntimeError(f"Docker error: {docker_error}")
+                    else:
+                        raise RuntimeError(f"Failed to analyze image: {error_msg}")
                 else:
-                    raise RuntimeError(f"Syft analysis failed: {result.stderr}")
+                    raise RuntimeError(f"Syft analysis failed: {error_msg}")
+            
+            # Check if the output file is empty (indicates image not found or other issues)
+            if os.path.getsize(temp_output) == 0:
+                logger.error(f"Syft produced empty output for image: {image_ref}")
+                raise RuntimeError(f"Docker image analysis failed - image may not exist or be accessible: {image_ref}")
             
             # Parse Syft JSON output
             components = await self._parse_syft_output(temp_output)

@@ -44,6 +44,9 @@ class SBOMGenerator:
             'container': 'container',
             'file': 'file'
         }
+        # Handle None or empty syft_type gracefully
+        if syft_type is None or not syft_type:
+            return 'library'
         return type_mapping.get(syft_type.lower(), 'library')
     
     async def generate(self, analysis_results: List[AnalysisResult], 

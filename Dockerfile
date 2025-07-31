@@ -17,6 +17,11 @@ RUN curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | 
 # Install Grype for vulnerability scanning
 RUN curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
 
+# Set environment variables for tool paths
+ENV SYFT_PATH=/usr/local/bin/syft
+ENV GRYPE_PATH=/usr/local/bin/grype
+ENV CONTAINER_ENV=true
+
 # Install Docker CLI for Docker daemon communication
 RUN curl -fsSL https://download.docker.com/linux/static/stable/x86_64/docker-24.0.7.tgz | tar -xzC /usr/local/bin --strip=1 docker/docker
 
@@ -57,9 +62,18 @@ done
 echo "Initializing database..."
 python scripts/init_database.py
 
-# Start main API server with integrated telemetry server
+# Start main API server with integrated telemetry server and connection limits
 echo "Starting integrated API and telemetry server..."
-python -m uvicorn src.api.main:app --host 0.0.0.0 --port 8000
+python -m uvicorn src.api.main:app --host 0.0.0.0 --port 8000 \
+  --limit-concurrency 20 \
+  --limit-max-requests 1000 \
+  --timeout-keep-alive 5 \
+  --timeout-graceful-shutdown 10 \
+  --loop asyncio \
+  --http h11 \
+  --workers 1 \
+  --access-log \
+  --log-level info
 EOF
 
 RUN chmod +x /app/start.sh

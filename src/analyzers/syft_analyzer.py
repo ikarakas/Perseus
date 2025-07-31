@@ -25,13 +25,63 @@ class SyftAnalyzer(BaseAnalyzer):
             raise RuntimeError("Syft not found in PATH")
     
     def _find_syft(self) -> Optional[str]:
-        """Find syft binary in PATH"""
+        """Find syft binary in PATH or common locations"""
+        # Check if SYFT_PATH environment variable is set (useful for containers)
+        env_syft_path = os.environ.get('SYFT_PATH')
+        if env_syft_path and os.path.isfile(env_syft_path) and os.access(env_syft_path, os.X_OK):
+            logger.info(f"Using SYFT_PATH from environment: {env_syft_path}")
+            return env_syft_path
+        
+        # Check if we're running in a container
+        is_container = os.path.exists('/.dockerenv') or os.environ.get('CONTAINER_ENV') == 'true'
+        
+        # First try 'which' command
         try:
             result = subprocess.run(['which', 'syft'], capture_output=True, text=True)
-            if result.returncode == 0:
-                return result.stdout.strip()
+            if result.returncode == 0 and result.stdout.strip():
+                syft_path = result.stdout.strip()
+                # Verify the binary actually exists and is executable
+                if os.path.isfile(syft_path) and os.access(syft_path, os.X_OK):
+                    logger.info(f"Found syft via which: {syft_path}")
+                    return syft_path
         except Exception:
             pass
+        
+        # Try common locations based on environment
+        if is_container:
+            # Container paths (Linux)
+            common_paths = [
+                '/usr/local/bin/syft',
+                '/usr/bin/syft',
+                '/opt/syft/syft',
+                os.path.expanduser('~/.local/bin/syft'),
+            ]
+        else:
+            # Development paths (macOS/Linux)
+            common_paths = [
+                '/opt/homebrew/bin/syft',  # macOS ARM64
+                '/usr/local/bin/syft',      # macOS Intel or Linux
+                '/usr/bin/syft',            # Linux system
+                '/home/linuxbrew/.linuxbrew/bin/syft',  # Linux homebrew
+                os.path.expanduser('~/.local/bin/syft'),
+                os.path.expanduser('~/go/bin/syft'),
+            ]
+        
+        for path in common_paths:
+            if os.path.isfile(path) and os.access(path, os.X_OK):
+                logger.info(f"Found syft at: {path} (container={is_container})")
+                return path
+        
+        # Try to find in PATH environment variable
+        path_env = os.environ.get('PATH', '').split(os.pathsep)
+        for directory in path_env:
+            syft_path = os.path.join(directory, 'syft')
+            if os.path.isfile(syft_path) and os.access(syft_path, os.X_OK):
+                logger.info(f"Found syft in PATH at: {syft_path}")
+                return syft_path
+        
+        logger.error(f"Syft not found. Searched paths: {common_paths}")
+        logger.error(f"PATH environment: {os.environ.get('PATH', 'Not set')}")
         return None
     
     async def analyze(self, location: str, options: Optional[AnalysisOptions] = None) -> AnalysisResult:
@@ -102,17 +152,23 @@ class SyftAnalyzer(BaseAnalyzer):
             logger.info(f"Running Syft command: {' '.join(cmd)}")
             
             # Execute Syft
+            # Always run from /app directory to ensure consistent environment
             result = subprocess.run(
                 cmd,
                 capture_output=True,
                 text=True,
                 timeout=300,  # 5 minute timeout
-                cwd=os.path.dirname(location) if os.path.isfile(location) else location
+                cwd="/app"
             )
             
             if result.returncode != 0:
-                logger.error(f"Syft command failed: {result.stderr}")
-                raise RuntimeError(f"Syft analysis failed: {result.stderr}")
+                error_msg = result.stderr.strip() if result.stderr else "Unknown error"
+                if not error_msg or error_msg == "":
+                    error_msg = result.stdout.strip() if result.stdout else "No error output available"
+                if not error_msg or error_msg == "":
+                    error_msg = f"Command failed with return code {result.returncode}"
+                logger.error(f"Syft command failed: {error_msg}")
+                raise RuntimeError(f"Syft analysis failed: {error_msg}")
             
             # Parse Syft JSON output
             components = await self._parse_syft_output(temp_output)
@@ -134,6 +190,11 @@ class SyftAnalyzer(BaseAnalyzer):
         components = []
         
         try:
+            # Check if the output file is empty (can happen with non-existent images)
+            if os.path.getsize(output_file) == 0:
+                logger.warning(f"Syft output file is empty: {output_file}")
+                return components  # Return empty list
+                
             with open(output_file, 'r') as f:
                 syft_data = json.load(f)
             

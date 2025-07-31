@@ -15,6 +15,8 @@ import logging
 import time
 from datetime import datetime
 import os
+import asyncio
+from collections import defaultdict
 
 from .models import AnalysisRequest, AnalysisResponse, SBOMRequest
 from ..orchestrator.workflow import WorkflowEngine
@@ -52,6 +54,74 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Rate limiting storage
+rate_limit_storage = defaultdict(list)
+
+# Rate limiting middleware
+@app.middleware("http")
+async def rate_limit_middleware(request: Request, call_next):
+    """Rate limiting middleware to prevent server overload"""
+    try:
+        client_ip = request.client.host if request.client else "unknown"
+        current_time = time.time()
+        
+        # Configure rate limits per endpoint
+        endpoint = request.url.path
+        if endpoint.startswith("/analyze/"):
+            # Analysis endpoints: 10 requests per minute per IP
+            rate_limit = 10
+            window = 60
+        elif endpoint.startswith("/api/v1/"):
+            # API endpoints: 60 requests per minute per IP
+            rate_limit = 60
+            window = 60
+        else:
+            # Other endpoints: 120 requests per minute per IP
+            rate_limit = 120
+            window = 60
+        
+        # Clean old entries
+        rate_limit_storage[client_ip] = [
+            timestamp for timestamp in rate_limit_storage[client_ip]
+            if current_time - timestamp < window
+        ]
+        
+        # Check rate limit
+        if len(rate_limit_storage[client_ip]) >= rate_limit:
+            logger.warning(f"Rate limit exceeded for {client_ip} on {endpoint}")
+            # Return proper HTTP response instead of raising exception
+            from fastapi.responses import JSONResponse
+            return JSONResponse(
+                status_code=429,
+                content={
+                    "error": "Rate limit exceeded",
+                    "detail": f"Maximum {rate_limit} requests per {window} seconds.",
+                    "retry_after": window
+                }
+            )
+        
+        # Add current request
+        rate_limit_storage[client_ip].append(current_time)
+        
+        response = await call_next(request)
+        return response
+        
+    except Exception as e:
+        # Handle all exceptions gracefully (including connection drops)
+        logger.debug(f"Rate limiting middleware error: {e}")
+        try:
+            # Try to process the request even if rate limiting fails
+            response = await call_next(request)
+            return response
+        except Exception as inner_e:
+            # If even that fails, return a service unavailable response
+            logger.debug(f"Request processing failed: {inner_e}")
+            from fastapi.responses import JSONResponse
+            return JSONResponse(
+                status_code=503,
+                content={"error": "Service temporarily unavailable"}
+            )
+
 # Initialize telemetry storage first
 telemetry_storage = TelemetryStorage()
 
@@ -64,6 +134,23 @@ metrics_collector = MetricsCollector()
 workflow_engine = WorkflowEngine(metrics_collector)
 dashboard = MonitoringDashboard(metrics_collector, telemetry_storage)
 database_dashboard = DatabaseDashboard()
+
+# Background task semaphore to limit concurrent background tasks
+BACKGROUND_TASK_LIMIT = 10
+background_task_semaphore = asyncio.Semaphore(BACKGROUND_TASK_LIMIT)
+
+async def limited_background_task(task_func, *args, **kwargs):
+    """Wrapper for background tasks with concurrency limits"""
+    async with background_task_semaphore:
+        try:
+            if asyncio.iscoroutinefunction(task_func):
+                await task_func(*args, **kwargs)
+            else:
+                # Handle sync functions
+                task_func(*args, **kwargs)
+        except Exception as e:
+            logger.error(f"Background task failed: {e}")
+            # Don't re-raise to prevent background task failures from affecting the response
 
 # Initialize telemetry API with server
 init_telemetry_api(telemetry_storage, telemetry_server)
@@ -101,20 +188,51 @@ async def track_api_requests(request: Request, call_next):
     """Track API requests for metrics"""
     start_time = time.time()
     
-    response = await call_next(request)
-    
-    # Calculate response time
-    response_time = time.time() - start_time
-    
-    # Record metrics
-    metrics_collector.record_api_request(
-        endpoint=request.url.path,
-        method=request.method,
-        response_time=response_time,
-        status_code=response.status_code
-    )
-    
-    return response
+    try:
+        response = await call_next(request)
+        
+        # Calculate response time
+        response_time = time.time() - start_time
+        
+        # Record metrics
+        metrics_collector.record_api_request(
+            endpoint=request.url.path,
+            method=request.method,
+            response_time=response_time,
+            status_code=response.status_code
+        )
+        
+        return response
+        
+    except Exception as e:
+        # Handle connection drops and other errors gracefully
+        response_time = time.time() - start_time
+        
+        # Record failed request metrics
+        try:
+            metrics_collector.record_api_request(
+                endpoint=request.url.path,
+                method=request.method,
+                response_time=response_time,
+                status_code=500
+            )
+        except:
+            # Ignore metrics recording errors
+            pass
+        
+        # Check if this is a connection drop (EndOfStream, ConnectionError, etc.)
+        error_name = type(e).__name__
+        if any(err in error_name.lower() for err in ['endofstream', 'connectionerror', 'disconnect']):
+            logger.debug(f"Connection dropped during request processing: {e}")
+            # Don't re-raise for connection drops - they're client-side issues
+            from fastapi.responses import JSONResponse
+            return JSONResponse(
+                status_code=503,
+                content={"error": "Connection interrupted"}
+            )
+        
+        # For other errors, re-raise for proper error handling
+        raise
 
 # Mount static files
 static_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
@@ -328,8 +446,9 @@ async def analyze_source(request: AnalysisRequest, background_tasks: BackgroundT
         analysis_id = str(uuid.uuid4())
         logger.info(f"Starting source analysis {analysis_id} for {request.language} at {source_path}")
         
-        # Start analysis in background
+        # Start analysis in background with limits
         background_tasks.add_task(
+            limited_background_task,
             workflow_engine.analyze_source,
             analysis_id,
             request
@@ -380,8 +499,9 @@ async def analyze_binary(request: AnalysisRequest, background_tasks: BackgroundT
         analysis_id = str(uuid.uuid4())
         logger.info(f"Starting binary analysis {analysis_id} for {binary_path}")
         
-        # Start analysis in background
+        # Start analysis in background with limits
         background_tasks.add_task(
+            limited_background_task,
             workflow_engine.analyze_binary,
             analysis_id,
             request
@@ -458,8 +578,9 @@ async def generate_sbom(request: SBOMRequest, background_tasks: BackgroundTasks)
         sbom_id = str(uuid.uuid4())
         logger.info(f"Starting SBOM generation {sbom_id}")
         
-        # Start SBOM generation in background
+        # Start SBOM generation in background with limits
         background_tasks.add_task(
+            limited_background_task,
             workflow_engine.generate_sbom,
             sbom_id,
             request
@@ -481,8 +602,9 @@ async def analyze_docker(request: AnalysisRequest, background_tasks: BackgroundT
         analysis_id = str(uuid.uuid4())
         logger.info(f"Starting Docker image analysis {analysis_id} for {request.location}")
         
-        # Start analysis in background
+        # Start analysis in background with limits
         background_tasks.add_task(
+            limited_background_task,
             workflow_engine.analyze_docker,
             analysis_id,
             request
@@ -508,8 +630,9 @@ async def analyze_os(request: AnalysisRequest, background_tasks: BackgroundTasks
         analysis_id = str(uuid.uuid4())
         logger.info(f"Starting OS analysis {analysis_id} for {request.location}")
         
-        # Start analysis in background
+        # Start analysis in background with limits
         background_tasks.add_task(
+            limited_background_task,
             workflow_engine.analyze_os,
             analysis_id,
             request

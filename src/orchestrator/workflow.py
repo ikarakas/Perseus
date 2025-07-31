@@ -1059,12 +1059,12 @@ class WorkflowEngine:
                 component.critical_vulnerabilities = sum(
                     1 for v in vulnerabilities 
                     if isinstance(v, dict) and v.get('severity', '').lower() == 'critical'
-                    or hasattr(v, 'severity') and v.severity.lower() == 'critical'
+                    or hasattr(v, 'severity') and v.severity and v.severity.lower() == 'critical'
                 )
                 component.high_vulnerabilities = sum(
                     1 for v in vulnerabilities 
                     if isinstance(v, dict) and v.get('severity', '').lower() == 'high'
-                    or hasattr(v, 'severity') and v.severity.lower() == 'high'
+                    or hasattr(v, 'severity') and v.severity and v.severity.lower() == 'high'
                 )
                 
                 for vuln_data in vulnerabilities:
