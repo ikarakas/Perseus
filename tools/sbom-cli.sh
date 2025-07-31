@@ -298,10 +298,10 @@ if 'error' in data:
     print('❌ Error:', data['error'])
     sys.exit(1)
 
-print(f'✅ Analysis: {data[\"status\"]}')
-print(f'📦 Components found: {len(data[\"components\"])}')
+print(f'✅ Analysis: {data.get(\"status\", \"unknown\")}')
+print(f'📦 Components found: {len(data.get(\"components\", []))}')
 
-if data['components']:
+if data.get('components'):
     print('\nComponents:')
     for i, comp in enumerate(data['components'], 1):
         version = comp.get('version') or 'unknown'
@@ -310,8 +310,10 @@ if data['components']:
         if location != 'unknown':
             print(f'      Source: {location}')
 
-print(f'\nMetadata: {data[\"metadata\"]}')
-print(f'\nTo generate an SBOM, use: ./sbom-cli.sh generate-sbom {data[\"analysis_id\"]} spdx')
+if 'metadata' in data:
+    print(f'\nMetadata: {data[\"metadata\"]}')
+if 'analysis_id' in data:
+    print(f'\nTo generate an SBOM, use: ./sbom-cli.sh generate-sbom {data[\"analysis_id\"]} spdx')
 "
 }
 
