@@ -1,18 +1,17 @@
 {
   "version": {
     "major": 1,
-    "minor": 6,
-    "revision": 0,
-    "patch": 0,
-    "string": "1.6.0"
+    "minor": 7,
+    "build": 0,
+    "string": "1.7.0"
   },
   "classification": {
     "level": "NOT CLASSIFIED",
     "display": true,
     "color": "#00FF00"
   },
-  "build": {
-    "timestamp": "2025-07-30T19:00:00Z",
-    "environment": "production"
+  "build_info": {
+    "timestamp": "2025-08-01T20:24:08Z",
+    "environment": "development"
   }
 }

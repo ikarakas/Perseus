@@ -15,7 +15,7 @@ data:
   LOG_LEVEL: "INFO"
   TELEMETRY_ENABLED: "true"
   CLASSIFICATION_LEVEL: "UNCLASSIFIED"
-  VERSION: "1.6.0"
+  VERSION: "1.7.0"
 
 ---
 apiVersion: apps/v1
