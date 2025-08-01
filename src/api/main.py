@@ -42,7 +42,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title="Perseus SBOM Platform",
     description="Enterprise SBOM & Vulnerability Management Platform",
-    version="1.7.0"
+    version="1.8.0"
 )
 
 # Add CORS middleware
