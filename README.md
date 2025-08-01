@@ -286,7 +286,7 @@ Perseus/
 ├── data/                       # Analysis results (gitignored)
 ├── logs/                       # Application logs (gitignored)
 ├── Dockerfile                  # Standard container image
-└── docker-compose-simple.yml   # Production-ready setup
+└── docker-compose-prod.yml     # Production-ready setup
 ```
 
 ---
