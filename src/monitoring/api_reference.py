@@ -164,55 +164,83 @@ def setup_api_reference_routes(app: FastAPI):
                 <div class="card">
                     <h3>🔗 Quick API Reference</h3>
                     <div class="code">
-                        <strong>Copy files to data directory:</strong><br>
-                        cp -r /path/to/project ./data/my-project
-                    </div>
-                    <div class="code">
-                        <strong>Analyze source code via curl:</strong><br>
-                        curl -X POST http://localhost:8000/analyze/source \\<br>
+                        <strong>Analyze source code (Java/Python/JS/Go/C++):</strong><br>
+                        curl -X POST http://localhost:8000/api/v1/analyze \\<br>
                         &nbsp;&nbsp;-H "Content-Type: application/json" \\<br>
                         &nbsp;&nbsp;-d '{{"type":"source","language":"java","location":"/app/data/my-project"}}'
                     </div>
                     <div class="code">
-                        <strong>Analyze Docker image via curl:</strong><br>
-                        curl -X POST http://localhost:8000/analyze/docker \\<br>
+                        <strong>Analyze Docker image:</strong><br>
+                        curl -X POST http://localhost:8000/api/v1/analyze \\<br>
                         &nbsp;&nbsp;-H "Content-Type: application/json" \\<br>
                         &nbsp;&nbsp;-d '{{"type":"docker","location":"ubuntu:latest"}}'
                     </div>
                     <div class="code">
-                        <strong>CI/CD Integration (register build):</strong><br>
-                        curl -X POST http://localhost:8000/api/v1/cicd/builds \\<br>
+                        <strong>Analyze binary/executable:</strong><br>
+                        curl -X POST http://localhost:8000/api/v1/analyze \\<br>
                         &nbsp;&nbsp;-H "Content-Type: application/json" \\<br>
-                        &nbsp;&nbsp;-d '{{"build_id":"build-123","project":{{"name":"my-project","path":"./data/my-project"}},"ci_context":{{"platform":"jenkins"}}}}'
+                        &nbsp;&nbsp;-d '{{"type":"binary","location":"/app/data/my-binary"}}'
                     </div>
                     <div class="code">
-                        <strong>Analyze OS (Linux only) via curl:</strong><br>
-                        curl -X POST http://localhost:8000/analyze/os \\<br>
+                        <strong>Get analysis results:</strong><br>
+                        curl http://localhost:8000/api/v1/analyses/{{analysis_id}}/results
+                    </div>
+                    <div class="code">
+                        <strong>Run vulnerability scan on analysis:</strong><br>
+                        curl -X POST http://localhost:8000/api/v1/analyses/{{analysis_id}}/vulnerabilities/scan
+                    </div>
+                    <div class="code">
+                        <strong>Search components by name:</strong><br>
+                        curl "http://localhost:8000/api/v1/components/search?name=spring&limit=100"
+                    </div>
+                    <div class="code">
+                        <strong>Get components by analysis ID:</strong><br>
+                        curl "http://localhost:8000/api/v1/components/by-analysis/{{analysis_id}}?limit=1000"
+                    </div>
+                    <div class="code">
+                        <strong>CI/CD Integration - Register build:</strong><br>
+                        curl -X POST http://localhost:8000/api/v1/cicd/builds \\<br>
                         &nbsp;&nbsp;-H "Content-Type: application/json" \\<br>
-                        &nbsp;&nbsp;-d '{{"type":"os","location":"localhost"}}'
+                        &nbsp;&nbsp;-d '{{"build_id":"build-123","project":{{"name":"my-project","path":"./data/my-project","type":"java"}},"ci_context":{{"platform":"jenkins"}}}}'
+                    </div>
+                    <div class="code">
+                        <strong>CI/CD Integration - Start scan:</strong><br>
+                        curl -X POST http://localhost:8000/api/v1/cicd/builds/{{build_id}}/scan \\<br>
+                        &nbsp;&nbsp;-H "Content-Type: application/json" \\<br>
+                        &nbsp;&nbsp;-d '{{"scan_type":"full","wait":true}}'
+                    </div>
+                    <div class="code">
+                        <strong>Check rate limit status:</strong><br>
+                        curl http://localhost:8000/admin/rate-limits/status
+                    </div>
+                    <div class="code">
+                        <strong>Update vulnerability database:</strong><br>
+                        curl -X POST http://localhost:8000/vulnerabilities/database/update
                     </div>
                 </div>
                 
                 <!-- Useful Links -->
                 <div class="card">
                     <h3>🔗 Useful Links</h3>
+                    <h4 style="margin-top: 15px; color: #555;">Dashboards & UI</h4>
                     <ul style="font-size: 16px; line-height: 1.8;">
+                        <li><a href="/dashboard" target="_blank" style="color: #3498db;">📊 Main Dashboard</a></li>
                         <li><a href="/dashboard/enhanced" target="_blank" style="color: #4fd1c7; font-weight: bold;">🚀 Enhanced Portal - Database Analytics</a></li>
                         <li><a href="/components/search" target="_blank" style="color: #3498db;">🔍 Component Search</a></li>
+                        <li><a href="/vulnerability-details" target="_blank" style="color: #3498db;">🛡️ Vulnerability Details Viewer</a></li>
+                    </ul>
+                    
+                    <h4 style="margin-top: 15px; color: #555;">System Status & Monitoring</h4>
+                    <ul style="font-size: 16px; line-height: 1.8;">
                         <li><a href="/api/metrics" target="_blank" style="color: #3498db;">📈 Platform Metrics</a></li>
                         <li><a href="/health" target="_blank" style="color: #3498db;">❤️ Health Check</a></li>
-                        <li><a href="/docs" target="_blank" style="color: #3498db;">📖 API Documentation</a></li>
-                        <li><a href="/api/v1/cicd/builds" target="_blank" style="color: #3498db;">🚀 CI/CD API</a></li>
+                        <li><a href="/vulnerabilities/database/status" target="_blank" style="color: #3498db;">🔄 Vulnerability Database Status</a></li>
                     </ul>
-                </div>
-                
-                <!-- Additional Documentation -->
-                <div class="card">
-                    <h3>📚 Additional Resources</h3>
-                    <p>For complete platform documentation and user guides:</p>
+                    
+                    <h4 style="margin-top: 15px; color: #555;">Documentation</h4>
                     <ul style="font-size: 16px; line-height: 1.8;">
+                        <li><a href="/docs" target="_blank" style="color: #3498db;">📖 Interactive API Documentation</a></li>
                         <li><a href="/docs/readme" target="_blank" style="color: #3498db;">📋 User Manual (README)</a></li>
-                        <li><a href="/docs" target="_blank" style="color: #3498db;">🔧 Interactive API Explorer</a></li>
                     </ul>
                 </div>
             </div>

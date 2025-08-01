@@ -62,16 +62,18 @@ done
 echo "Initializing database..."
 python scripts/init_database.py
 
-# Start main API server with integrated telemetry server and connection limits
+# Start main API server with integrated telemetry server and better concurrency
 echo "Starting integrated API and telemetry server..."
+# Use single worker to avoid telemetry port conflicts and session storage issues
+# TODO: Implement Redis for session storage to support multiple workers
+WORKERS=${UVICORN_WORKERS:-1}
+echo "Starting with $WORKERS worker(s)..."
+
 python -m uvicorn src.api.main:app --host 0.0.0.0 --port 8000 \
-  --limit-concurrency 20 \
-  --limit-max-requests 1000 \
+  --workers $WORKERS \
   --timeout-keep-alive 5 \
   --timeout-graceful-shutdown 10 \
   --loop asyncio \
-  --http h11 \
-  --workers 1 \
   --access-log \
   --log-level info
 EOF

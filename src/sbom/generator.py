@@ -331,7 +331,7 @@ class SBOMGenerator:
             "SoftwareIdentity": {
                 "@name": sbom_name,
                 "@tagId": str(uuid.uuid4()),
-                "@version": "1.8.0",
+                "@version": "1.9.2",
                 "@xmlns": "http://standards.iso.org/iso/19770/-2/2015/schema.xsd",
                 "@versionScheme": "multipartnumeric",
                 "@corpus": "false",

@@ -159,6 +159,43 @@ def setup_component_search_routes(app):
         .back-link:hover {
             text-decoration: underline;
         }
+        .results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            padding: 1rem;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .results-count {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #4fd1c7;
+        }
+        .limit-selector {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .limit-selector select {
+            padding: 0.5rem;
+            border-radius: 5px;
+            border: none;
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+        }
+        .pagination-note {
+            margin-top: 1rem;
+            padding: 1rem;
+            background: rgba(255, 165, 0, 0.2);
+            border-radius: 10px;
+            border: 1px solid rgba(255, 165, 0, 0.4);
+            text-align: center;
+            font-size: 0.9rem;
+        }
     </style>
 </head>
 <body>
@@ -201,6 +238,16 @@ def setup_component_search_routes(app):
                         <option value="application">Application (main programs)</option>
                         <option value="container">Container</option>
                         <option value="framework">Framework</option>
+                    </select>
+                </div>
+                <div class="filter-item">
+                    <label>Results per page:</label>
+                    <select id="limitSelector" onchange="performSearch()">
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                        <option value="250">250</option>
+                        <option value="500">500</option>
+                        <option value="1000">1000</option>
                     </select>
                 </div>
             </div>
@@ -247,6 +294,7 @@ def setup_component_search_routes(app):
             const minSeverity = document.getElementById('minSeverity').value;
             const componentType = document.getElementById('componentType').value;
             const analysisIdFilter = document.getElementById('analysisIdFilter').value.trim();
+            const limit = document.getElementById('limitSelector').value;
             
             if (!query && !vulnerableOnly && !analysisIdFilter) {
                 document.getElementById('results').innerHTML = `
@@ -276,7 +324,7 @@ def setup_component_search_routes(app):
                 if (minSeverity) params.append('min_severity', minSeverity);
                 if (componentType) params.append('component_type', componentType);
                 
-                params.append('limit', '50');
+                params.append('limit', limit);
                 
                 const response = await fetch(`${url}?${params}`);
                 if (!response.ok) {
@@ -301,7 +349,9 @@ def setup_component_search_routes(app):
         
         function displayResults(data) {
             const results = data.components || data.vulnerable_components || [];
+            const total = data.total || results.length;
             const resultsContainer = document.getElementById('results');
+            const limit = parseInt(document.getElementById('limitSelector').value);
             
             if (results.length === 0) {
                 resultsContainer.innerHTML = `
@@ -313,7 +363,28 @@ def setup_component_search_routes(app):
                 return;
             }
             
-            resultsContainer.innerHTML = results.map(component => `
+            // Add results header with count
+            let html = `
+                <div class="results-header">
+                    <div class="results-count">
+                        Found ${total} components
+                        ${results.length < total ? `(showing ${results.length})` : ''}
+                    </div>
+                </div>
+            `;
+            
+            // Add pagination note if needed
+            if (total > limit) {
+                html += `
+                    <div class="pagination-note">
+                        ⚠️ Showing first ${results.length} of ${total} results. 
+                        ${total > 1000 ? 'For analysis with many components, consider using the analysis ID filter for better performance.' : 'Increase "Results per page" to see more.'}
+                    </div>
+                `;
+            }
+            
+            // Add component cards
+            html += results.map(component => `
                 <div class="component-card ${component.vulnerability_count > 0 ? 'vulnerable' : ''}">
                     <div class="component-header">
                         <div>
@@ -356,6 +427,8 @@ def setup_component_search_routes(app):
                     </div>
                 </div>
             `).join('');
+            
+            resultsContainer.innerHTML = html;
         }
     </script>
 </body>

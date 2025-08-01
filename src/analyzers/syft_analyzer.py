@@ -6,6 +6,7 @@ Syft-based analyzer for comprehensive SBOM generation
 import os
 import json
 import subprocess
+import asyncio
 import logging
 import tempfile
 from typing import List, Dict, Any, Optional
@@ -35,7 +36,7 @@ class SyftAnalyzer(BaseAnalyzer):
         # Check if we're running in a container
         is_container = os.path.exists('/.dockerenv') or os.environ.get('CONTAINER_ENV') == 'true'
         
-        # First try 'which' command
+        # First try 'which' command - using sync subprocess for init only
         try:
             result = subprocess.run(['which', 'syft'], capture_output=True, text=True)
             if result.returncode == 0 and result.stdout.strip():
@@ -128,6 +129,7 @@ class SyftAnalyzer(BaseAnalyzer):
     async def _run_syft_analysis(self, location: str, options: Optional[AnalysisOptions] = None) -> List[Component]:
         """Run Syft analysis and parse results"""
         components = []
+        temp_output = None
         
         try:
             # Create temporary file for Syft output
@@ -151,30 +153,39 @@ class SyftAnalyzer(BaseAnalyzer):
             
             logger.info(f"Running Syft command: {' '.join(cmd)}")
             
-            # Execute Syft
-            # Always run from /app directory to ensure consistent environment
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=300,  # 5 minute timeout
-                cwd="/app"
+            # Execute Syft asynchronously
+            # Use SYFT_WORK_DIR env var or current directory
+            work_dir = os.environ.get('SYFT_WORK_DIR', os.getcwd())
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=work_dir
             )
             
-            if result.returncode != 0:
-                error_msg = result.stderr.strip() if result.stderr else "Unknown error"
+            try:
+                stdout, stderr = await asyncio.wait_for(
+                    process.communicate(),
+                    timeout=300  # 5 minute timeout
+                )
+                stdout_text = stdout.decode('utf-8') if stdout else ''
+                stderr_text = stderr.decode('utf-8') if stderr else ''
+            except asyncio.TimeoutError:
+                process.kill()
+                await process.wait()
+                raise subprocess.TimeoutExpired(cmd, 300)
+            
+            if process.returncode != 0:
+                error_msg = stderr_text.strip() if stderr_text else "Unknown error"
                 if not error_msg or error_msg == "":
-                    error_msg = result.stdout.strip() if result.stdout else "No error output available"
+                    error_msg = stdout_text.strip() if stdout_text else "No error output available"
                 if not error_msg or error_msg == "":
-                    error_msg = f"Command failed with return code {result.returncode}"
+                    error_msg = f"Command failed with return code {process.returncode}"
                 logger.error(f"Syft command failed: {error_msg}")
                 raise RuntimeError(f"Syft analysis failed: {error_msg}")
             
             # Parse Syft JSON output
             components = await self._parse_syft_output(temp_output)
-            
-            # Clean up temporary file
-            os.unlink(temp_output)
             
             return components
             
@@ -184,6 +195,14 @@ class SyftAnalyzer(BaseAnalyzer):
         except Exception as e:
             logger.error(f"Syft execution failed: {str(e)}")
             raise
+        finally:
+            # Always clean up temporary file
+            if temp_output and os.path.exists(temp_output):
+                try:
+                    os.unlink(temp_output)
+                    logger.debug(f"Cleaned up temporary file: {temp_output}")
+                except Exception as cleanup_error:
+                    logger.warning(f"Failed to clean up temporary file {temp_output}: {cleanup_error}")
     
     async def _parse_syft_output(self, output_file: str) -> List[Component]:
         """Parse Syft JSON output into Component objects"""
@@ -322,14 +341,21 @@ class SyftAnalyzer(BaseAnalyzer):
     async def _get_syft_version(self) -> str:
         """Get Syft version"""
         try:
-            result = subprocess.run([self.syft_path, 'version'], capture_output=True, text=True)
-            if result.returncode == 0:
+            process = await asyncio.create_subprocess_exec(
+                self.syft_path, 'version',
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, _ = await process.communicate()
+            
+            if process.returncode == 0:
+                stdout_text = stdout.decode('utf-8')
                 # Parse version from output
-                lines = result.stdout.strip().split('\n')
+                lines = stdout_text.strip().split('\n')
                 for line in lines:
                     if 'version:' in line.lower() or 'syft' in line.lower():
                         return line.strip()
-                return result.stdout.strip().split('\n')[0]
+                return stdout_text.strip().split('\n')[0]
             return "unknown"
         except Exception:
             return "unknown"

@@ -42,7 +42,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title="Perseus SBOM Platform",
     description="Enterprise SBOM & Vulnerability Management Platform",
-    version="1.8.0"
+    version="1.9.2"
 )
 
 # Add CORS middleware
@@ -52,6 +52,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 # Debug endpoint for rate limit status
@@ -244,9 +245,19 @@ async def startup_event():
         # Continue without database for backwards compatibility
         logger.warning("Continuing without database - using file-based storage")
     
-    # Start telemetry server
+    # Start telemetry server only in the main worker
+    import os
     import asyncio
-    asyncio.create_task(telemetry_server.start())
+    
+    # Only start telemetry server if we're the first worker or running in single-worker mode
+    worker_id = os.environ.get("APP_WORKER_ID", "0")
+    if worker_id == "0":
+        try:
+            asyncio.create_task(telemetry_server.start())
+        except Exception as e:
+            logger.warning(f"Failed to start telemetry server: {e}")
+            # Continue without telemetry server
+
 
 # Add API metrics tracking middleware
 @app.middleware("http")
@@ -348,15 +359,9 @@ async def get_detailed_vulnerability_scan(analysis_id: str, db: Session = Depend
                     "vulnerable_components": []
                 }
                 
-                for component in results.components:
-                    if component.vulnerabilities and len(component.vulnerabilities) > 0:
-                        component_data = {
-                            "component_name": component.name,
-                            "component_version": component.version,
-                            "purl": component.purl,
-                            "vulnerabilities": component.vulnerabilities
-                        }
-                        legacy_results["vulnerable_components"].append(component_data)
+                # Components don't have vulnerabilities attribute directly
+                # Skip the legacy approach that expects vulnerabilities on components
+                logger.debug("Components don't have embedded vulnerabilities, skipping legacy approach")
                 
                 # Convert legacy format to enhanced format
                 enhanced_vulnerabilities = []
@@ -854,7 +859,7 @@ async def update_vulnerability_database():
         from ..vulnerability.grype_scanner import GrypeScanner
         
         scanner = GrypeScanner()
-        result = scanner._update_database()
+        result = await scanner._update_database()
         
         return {
             "status": "success",
@@ -872,7 +877,7 @@ async def get_vulnerability_database_status():
         from ..vulnerability.grype_scanner import GrypeScanner
         
         scanner = GrypeScanner()
-        status = scanner.get_status()
+        status = await scanner.get_status()
         
         return status
     except Exception as e:
