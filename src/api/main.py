@@ -54,19 +54,62 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Rate limiting storage
+# Debug endpoint for rate limit status
+@app.get("/admin/rate-limit-status")
+async def rate_limit_status():
+    """Debug endpoint to check rate limit status"""
+    global rate_limit_storage
+    status = {}
+    current_time = time.time()
+    
+    # Show all keys, even with old timestamps
+    for key, timestamps in rate_limit_storage.items():
+        # Show all timestamps
+        all_ts = [(current_time - ts) for ts in timestamps]
+        # Clean old entries
+        active_timestamps = [ts for ts in timestamps if current_time - ts < 60]
+        
+        status[key] = {
+            "count": len(active_timestamps),
+            "total_stored": len(timestamps),
+            "oldest": current_time - min(active_timestamps) if active_timestamps else None,
+            "newest": current_time - max(active_timestamps) if active_timestamps else None,
+            "active_timestamps": [current_time - ts for ts in active_timestamps],
+            "all_timestamps": all_ts[:10]  # Show first 10
+        }
+    
+    return {
+        "current_time": current_time,
+        "rate_limit_status": status,
+        "total_keys": len(rate_limit_storage)
+    }
+
+# Rate limiting storage - MUST be defined before middleware and endpoints
 rate_limit_storage = defaultdict(list)
+
+# Clear rate limits endpoint (for testing)
+@app.post("/admin/clear-rate-limits")
+async def clear_rate_limits():
+    """Clear all rate limits (admin only)"""
+    global rate_limit_storage
+    rate_limit_storage.clear()
+    logger.info("Rate limits cleared")
+    return {"message": "Rate limits cleared", "cleared_keys": len(rate_limit_storage)}
 
 # Rate limiting middleware
 @app.middleware("http")
 async def rate_limit_middleware(request: Request, call_next):
     """Rate limiting middleware to prevent server overload"""
     try:
+        # Skip rate limiting for non-API endpoints
+        endpoint = request.url.path
+        if endpoint in ["/health", "/favicon.ico", "/docs", "/openapi.json", "/redoc"]:
+            return await call_next(request)
+        
         client_ip = request.client.host if request.client else "unknown"
         current_time = time.time()
         
         # Configure rate limits per endpoint
-        endpoint = request.url.path
         if endpoint.startswith("/analyze/"):
             # Analysis endpoints: 10 requests per minute per IP
             rate_limit = 10
@@ -80,15 +123,25 @@ async def rate_limit_middleware(request: Request, call_next):
             rate_limit = 120
             window = 60
         
+        # Create a unique key for this endpoint group and IP
+        rate_key = f"{client_ip}:{endpoint.split('/')[1] if '/' in endpoint else 'root'}"
+        
         # Clean old entries
-        rate_limit_storage[client_ip] = [
-            timestamp for timestamp in rate_limit_storage[client_ip]
-            if current_time - timestamp < window
-        ]
+        if rate_key in rate_limit_storage:
+            rate_limit_storage[rate_key] = [
+                timestamp for timestamp in rate_limit_storage[rate_key]
+                if current_time - timestamp < window
+            ]
+        else:
+            rate_limit_storage[rate_key] = []
+        
+        # Debug logging
+        current_count = len(rate_limit_storage[rate_key])
+        logger.info(f"Rate limit check: {rate_key} - {current_count}/{rate_limit} requests in last {window}s for {endpoint}")
         
         # Check rate limit
-        if len(rate_limit_storage[client_ip]) >= rate_limit:
-            logger.warning(f"Rate limit exceeded for {client_ip} on {endpoint}")
+        if current_count >= rate_limit:
+            logger.warning(f"Rate limit exceeded for {client_ip} on {endpoint} ({current_count}/{rate_limit})")
             # Return proper HTTP response instead of raising exception
             from fastapi.responses import JSONResponse
             return JSONResponse(
@@ -96,12 +149,15 @@ async def rate_limit_middleware(request: Request, call_next):
                 content={
                     "error": "Rate limit exceeded",
                     "detail": f"Maximum {rate_limit} requests per {window} seconds.",
-                    "retry_after": window
+                    "retry_after": window,
+                    "current_count": current_count,
+                    "rate_key": rate_key
                 }
             )
         
-        # Add current request
-        rate_limit_storage[client_ip].append(current_time)
+        # Add current request BEFORE processing
+        rate_limit_storage[rate_key].append(current_time)
+        logger.info(f"Added request to rate limit: {rate_key} - now {len(rate_limit_storage[rate_key])} requests")
         
         response = await call_next(request)
         return response
