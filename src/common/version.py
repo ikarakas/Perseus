@@ -46,16 +46,15 @@ class VersionConfig:
             "version": {
                 "major": 1,
                 "minor": 0,
-                "revision": 0,
-                "patch": 0,
-                "string": "1.0.0.0"
+                "build": 0,
+                "string": "1.0.0"
             },
             "classification": {
                 "level": "NOT CLASSIFIED",
                 "display": True,
                 "color": "#00FF00"
             },
-            "build": {
+            "build_info": {
                 "timestamp": datetime.utcnow().isoformat() + "Z",
                 "environment": "development"
             }
@@ -70,8 +69,7 @@ class VersionConfig:
         return {
             "major": self._config["version"]["major"],
             "minor": self._config["version"]["minor"],
-            "revision": self._config["version"]["revision"],
-            "patch": self._config["version"]["patch"]
+            "build": self._config["version"]["build"]
         }
     
     def get_classification_level(self) -> str:
@@ -88,7 +86,17 @@ class VersionConfig:
     
     def get_build_info(self) -> Dict[str, Any]:
         """Get build information"""
-        return self._config["build"]
+        # Handle both old and new key names for backward compatibility
+        if "build_info" in self._config:
+            return self._config["build_info"]
+        elif "build" in self._config:
+            return self._config["build"]
+        else:
+            # Return default if neither exists
+            return {
+                "timestamp": datetime.utcnow().isoformat() + "Z",
+                "environment": "development"
+            }
     
     def get_all_config(self) -> Dict[str, Any]:
         """Get complete configuration"""
@@ -96,29 +104,28 @@ class VersionConfig:
     
     def update_build_timestamp(self):
         """Update build timestamp to current time"""
-        self._config["build"]["timestamp"] = datetime.utcnow().isoformat() + "Z"
+        # Handle both old and new key names
+        if "build_info" in self._config:
+            self._config["build_info"]["timestamp"] = datetime.utcnow().isoformat() + "Z"
+        elif "build" in self._config:
+            self._config["build"]["timestamp"] = datetime.utcnow().isoformat() + "Z"
     
-    def increment_version(self, level: str = "patch"):
+    def increment_version(self, level: str = "build"):
         """Increment version number"""
         version = self._config["version"]
         
         if level == "major":
             version["major"] += 1
             version["minor"] = 0
-            version["revision"] = 0
-            version["patch"] = 0
+            version["build"] = 0
         elif level == "minor":
             version["minor"] += 1
-            version["revision"] = 0
-            version["patch"] = 0
-        elif level == "revision":
-            version["revision"] += 1
-            version["patch"] = 0
-        elif level == "patch":
-            version["patch"] += 1
+            version["build"] = 0
+        elif level == "build" or level == "patch":  # Support both names
+            version["build"] += 1
         
         # Update version string
-        version["string"] = f"{version['major']}.{version['minor']}.{version['revision']}.{version['patch']}"
+        version["string"] = f"{version['major']}.{version['minor']}.{version['build']}"
         
         # Update build timestamp
         self.update_build_timestamp()

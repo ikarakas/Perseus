@@ -42,7 +42,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title="Perseus SBOM Platform",
     description="Enterprise SBOM & Vulnerability Management Platform",
-    version="1.6.0"
+    version="1.7.0"
 )
 
 # Add CORS middleware
@@ -171,11 +171,21 @@ async def rate_limit_middleware(request: Request, call_next):
             return response
         except Exception as inner_e:
             # If even that fails, return a service unavailable response
-            logger.debug(f"Request processing failed: {inner_e}")
+            import traceback
+            error_traceback = traceback.format_exc()
+            logger.error(f"Request processing failed for {request.url.path}: {inner_e}")
+            logger.error(f"Full traceback:\n{error_traceback}")
             from fastapi.responses import JSONResponse
+            
+            # Include more details in development mode
+            error_content = {"error": "Service temporarily unavailable"}
+            if os.getenv("ENV", "development") == "development":
+                error_content["detail"] = str(inner_e)
+                error_content["path"] = request.url.path
+            
             return JSONResponse(
                 status_code=503,
-                content={"error": "Service temporarily unavailable"}
+                content=error_content
             )
 
 # Initialize telemetry storage first
