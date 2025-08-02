@@ -10,6 +10,17 @@ from datetime import datetime
 from collections import defaultdict
 import os
 
+def detect_sbom_format(data):
+    """Detect the SBOM format from the JSON structure"""
+    if 'spdxVersion' in data or 'SPDXID' in data:
+        return "SPDX"
+    elif 'bomFormat' in data or 'specVersion' in data:
+        return "CycloneDX"
+    elif 'SoftwareIdentity' in data:
+        return "SWID"
+    else:
+        return "Unknown"
+
 def generate_html_report(json_file_path, output_file=None):
     """Generate a beautiful HTML report from SBOM JSON data"""
     
@@ -23,10 +34,118 @@ def generate_html_report(json_file_path, output_file=None):
         print(f"Error: Invalid JSON in file '{json_file_path}'.")
         return
     
-    # Extract basic document info
-    doc_info = sbom_data.get('creationInfo', {})
-    created_date = doc_info.get('created', 'Unknown')
-    creators = doc_info.get('creators', [])
+    # Detect SBOM format and extract data accordingly
+    sbom_format = detect_sbom_format(sbom_data)
+    
+    if sbom_format == "SPDX":
+        # Extract SPDX data
+        doc_info = sbom_data.get('creationInfo', {})
+        created_date = doc_info.get('created', 'Unknown')
+        creators = doc_info.get('creators', [])
+        doc_name = sbom_data.get('name', 'Unknown')
+        doc_namespace = sbom_data.get('documentNamespace', '')
+        spec_version = sbom_data.get('spdxVersion', 'Unknown')
+        packages = sbom_data.get('packages', [])
+        
+    elif sbom_format == "CycloneDX":
+        # Extract CycloneDX data
+        metadata = sbom_data.get('metadata', {})
+        created_date = metadata.get('timestamp', 'Unknown')
+        creators = []
+        if 'tools' in metadata:
+            for tool in metadata.get('tools', []):
+                creators.append(f"Tool: {tool.get('name', 'Unknown')} {tool.get('version', '')}")
+        doc_name = metadata.get('component', {}).get('name', 'Unknown')
+        doc_namespace = sbom_data.get('serialNumber', '')
+        spec_version = f"CycloneDX {sbom_data.get('specVersion', 'Unknown')}"
+        # Convert components to package-like format
+        packages = []
+        for comp in sbom_data.get('components', []):
+            pkg = {
+                'name': comp.get('name', 'Unknown'),
+                'SPDXID': comp.get('bom-ref', ''),
+                'downloadLocation': comp.get('purl', ''),
+                'filesAnalyzed': False,
+                'licenseConcluded': comp.get('licenses', [{}])[0].get('license', {}).get('id', 'Unknown') if comp.get('licenses') else 'Unknown',
+                'copyrightText': comp.get('copyright', ''),
+                'versionInfo': comp.get('version', ''),
+                'externalRefs': [{'referenceLocator': comp.get('purl', ''), 'referenceType': 'purl'}] if comp.get('purl') else []
+            }
+            packages.append(pkg)
+            
+    elif sbom_format == "SWID":
+        # Extract SWID data
+        swid = sbom_data.get('SoftwareIdentity', {})
+        created_date = 'Unknown'  # SWID doesn't have creation date in standard location
+        creators = []
+        if 'Entity' in swid:
+            entities = swid.get('Entity', [])
+            if not isinstance(entities, list):
+                entities = [entities]
+            for entity in entities:
+                if isinstance(entity, dict) and 'tagCreator' in entity.get('@role', ''):
+                    creators.append(entity.get('@name', 'Unknown'))
+                    # Try to extract date from thumbprint
+                    thumbprint = entity.get('@thumbprint', '')
+                    if 'generated-at-' in thumbprint:
+                        created_date = thumbprint.split('generated-at-')[1].replace('Z', '')
+                        if created_date.endswith('Z'):
+                            created_date = created_date[:-1]
+        doc_name = swid.get('@name', 'Unknown')
+        doc_namespace = swid.get('@tagId', '')
+        spec_version = f"SWID {swid.get('@version', 'Unknown')}"
+        # Convert SWID Payload to package-like format
+        packages = []
+        if 'Payload' in swid:
+            payload = swid.get('Payload', {})
+            # Check for Resource elements (components/packages)
+            resources = payload.get('Resource', [])
+            if not isinstance(resources, list):
+                resources = [resources]
+            for resource in resources:
+                if isinstance(resource, dict):
+                    pkg = {
+                        'name': resource.get('@name', 'Unknown'),
+                        'SPDXID': f"Resource-{resource.get('@name', '').replace('/', '-')}",
+                        'downloadLocation': resource.get('@location', ''),
+                        'filesAnalyzed': False,
+                        'licenseConcluded': 'Unknown',
+                        'copyrightText': '',
+                        'versionInfo': resource.get('@version', ''),
+                        'externalRefs': []
+                    }
+                    packages.append(pkg)
+            
+            # Also check for Directory/File structure
+            directories = payload.get('Directory', [])
+            if not isinstance(directories, list):
+                directories = [directories]
+            for directory in directories:
+                if isinstance(directory, dict) and 'File' in directory:
+                    files = directory.get('File', [])
+                    if not isinstance(files, list):
+                        files = [files]
+                    for file_item in files:
+                        if isinstance(file_item, dict):
+                            pkg = {
+                                'name': file_item.get('@name', 'Unknown'),
+                                'SPDXID': f"File-{file_item.get('@name', '').replace('/', '-')}",
+                                'downloadLocation': directory.get('@name', '') + '/' + file_item.get('@name', ''),
+                                'filesAnalyzed': False,
+                                'licenseConcluded': 'Unknown',
+                                'copyrightText': '',
+                                'versionInfo': file_item.get('@version', ''),
+                                'externalRefs': []
+                            }
+                            packages.append(pkg)
+    else:
+        # Unknown format - try to extract what we can
+        doc_name = sbom_data.get('name', 'Unknown')
+        created_date = 'Unknown'
+        creators = []
+        doc_namespace = ''
+        spec_version = 'Unknown'
+        packages = []
     
     # Parse creation date
     try:
@@ -34,9 +153,6 @@ def generate_html_report(json_file_path, output_file=None):
         formatted_date = dt.strftime('%B %d, %Y at %I:%M:%S %p UTC')
     except:
         formatted_date = created_date
-    
-    # Process packages
-    packages = sbom_data.get('packages', [])
     
     # Group packages by type
     package_types = defaultdict(list)
@@ -75,7 +191,7 @@ def generate_html_report(json_file_path, output_file=None):
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SBOM Report - {sbom_data.get('name', 'Unknown')}</title>
+    <title>SBOM Report - {doc_name}</title>
     <style>
         * {{
             margin: 0;
@@ -338,15 +454,15 @@ def generate_html_report(json_file_path, output_file=None):
             <div class="info-grid">
                 <div class="info-card">
                     <h3>Document Name</h3>
-                    <p>{sbom_data.get('name', 'Unknown')}</p>
+                    <p>{doc_name}</p>
                 </div>
                 <div class="info-card">
                     <h3>Generated</h3>
                     <p>{formatted_date}</p>
                 </div>
                 <div class="info-card">
-                    <h3>SPDX Version</h3>
-                    <p>{sbom_data.get('spdxVersion', 'Unknown')}</p>
+                    <h3>SBOM Format</h3>
+                    <p>{spec_version}</p>
                 </div>
                 <div class="info-card">
                     <h3>Generated By</h3>
@@ -395,7 +511,7 @@ def generate_html_report(json_file_path, output_file=None):
         
         for pkg in pkgs:
             name = pkg.get('name', 'Unknown')
-            version = pkg.get('version', 'Unknown')
+            version = pkg.get('versionInfo', pkg.get('version', 'Unknown'))
             license_info = pkg.get('licenseConcluded', 'Unknown')
             
             # Truncate long license strings
@@ -495,15 +611,15 @@ def generate_html_report(json_file_path, output_file=None):
     print(f"📜 Unique licenses: {len(license_counts)}")
 
 def main():
-    if len(sys.argv) < 2:
-        print("Usage: python sbom_html_generator.py <sbom_file.json> [output_file.html]")
-        print("Example: python sbom_html_generator.py sbom-d6d6a1d4-8958-473f-8767-0b9abb7e5575.json")
-        sys.exit(1)
+    import argparse
     
-    json_file = sys.argv[1]
-    output_file = sys.argv[2] if len(sys.argv) > 2 else None
+    parser = argparse.ArgumentParser(description="Generate beautiful HTML reports from SBOM JSON data")
+    parser.add_argument("json_file", help="Path to the SBOM JSON file")
+    parser.add_argument("-o", "--output", dest="output_file", help="Output HTML file path (default: <input>_report.html)")
     
-    generate_html_report(json_file, output_file)
+    args = parser.parse_args()
+    
+    generate_html_report(args.json_file, args.output_file)
 
 if __name__ == "__main__":
     main() 

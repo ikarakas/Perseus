@@ -316,6 +316,11 @@ static_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
 if os.path.exists(static_dir):
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
+# Mount visualization files
+visualization_dir = "/app/data/visualizations"
+os.makedirs(visualization_dir, exist_ok=True)
+app.mount("/visualizations", StaticFiles(directory=visualization_dir), name="visualizations")
+
 # Setup dashboard routes
 dashboard.setup_routes(app)
 database_dashboard.setup_routes(app)
@@ -1080,21 +1085,32 @@ async def search_components(
         
         component_repo = ComponentRepository(db)
         
-        # Start with base search
-        if analysis_id:
-            # Search by analysis ID (supports partial matching)
-            components = component_repo.search_by_analysis_id(analysis_id, q, limit=limit)
+        # If vulnerable_only is true, use the specific method that properly joins with vulnerabilities
+        if vulnerable_only:
+            components = component_repo.get_vulnerable_components(min_severity=min_severity, analysis_id=analysis_id)
+            # Apply text search filter if provided
+            if q:
+                search_pattern = q.lower()
+                components = [c for c in components if search_pattern in (c.name or '').lower() or search_pattern in (c.description or '').lower()]
+            # Limit results
+            components = components[:limit]
         else:
-            # Regular text search
-            components = component_repo.search_components(q, limit=limit)
+            # Start with base search
+            if analysis_id:
+                # Search by analysis ID (supports partial matching)
+                components = component_repo.search_by_analysis_id(analysis_id, q, limit=limit)
+            else:
+                # Regular text search
+                components = component_repo.search_components(q, limit=limit)
         
-        logger.info(f"Found {len(components)} components before filtering")
+        logger.info(f"Found {len(components)} components before additional filtering")
         
-        # Apply filters
+        # Apply remaining filters only if not using vulnerable_only (which already handles these)
         filtered_components = []
         for component in components:
-            # Filter by vulnerable_only
-            if vulnerable_only and component.vulnerability_count == 0:
+            # Skip vulnerable_only filter if already handled above
+            if vulnerable_only:
+                filtered_components.append(component)
                 continue
                 
             # Filter by min_severity
@@ -1308,6 +1324,61 @@ async def get_sbom_statistics(db: Session = Depends(get_db_session)):
         return stats
     except Exception as e:
         logger.error(f"Error getting SBOM statistics: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v1/sboms/{sbom_id}/visualize")
+async def visualize_sbom(sbom_id: str, background_tasks: BackgroundTasks, db: Session = Depends(get_db_session)):
+    """Generate HTML visualization for an SBOM (non-blocking)"""
+    try:
+        # First check if SBOM exists
+        sbom_repo = SBOMRepository(db)
+        sbom = sbom_repo.get_with_analysis(sbom_id)
+        
+        if not sbom:
+            raise HTTPException(status_code=404, detail="SBOM not found")
+        
+        # Generate unique filename for the HTML visualization
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        html_filename = f"sbom_visualization_{sbom_id}_{timestamp}.html"
+        html_path = os.path.join("/app/data/visualizations", html_filename)
+        
+        # Ensure visualization directory exists
+        os.makedirs(os.path.dirname(html_path), exist_ok=True)
+        
+        # Get the SBOM JSON file path from the model object
+        sbom_json_path = sbom.file_path
+        
+        # Run the HTML generator in the background
+        async def generate_visualization():
+            try:
+                import subprocess
+                result = subprocess.run(
+                    ["python", "/app/tools/sbom_html_generator.py", sbom_json_path, "-o", html_path],
+                    capture_output=True,
+                    text=True,
+                    check=True
+                )
+                logger.info(f"SBOM visualization generated: {html_path}")
+            except subprocess.CalledProcessError as e:
+                logger.error(f"Failed to generate visualization: {e.stderr}")
+                raise
+        
+        # Add task to background queue
+        background_tasks.add_task(generate_visualization)
+        
+        # Return immediately with the URL where the visualization will be available
+        return {
+            "status": "processing",
+            "sbom_id": sbom_id,
+            "html_url": f"/visualizations/{html_filename}",
+            "message": "Visualization is being generated"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error generating SBOM visualization: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

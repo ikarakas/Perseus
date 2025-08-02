@@ -1140,6 +1140,10 @@ class DatabaseDashboard:
                     <div class="component-item">
                         <div class="component-name">
                             ${sbom.format.toUpperCase()}: ${sbom.name}
+                            <button onclick="visualizeSBOM('${sbom.sbom_id}')" 
+                                    style="float: right; background: #9b59b6; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.8rem; margin-left: 8px;">
+                                👁️ Visualize
+                            </button>
                             <button onclick="downloadSBOM('${sbom.sbom_id}')" 
                                     style="float: right; background: #4fd1c7; color: #1e3c72; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.8rem;">
                                 📥 Download
@@ -2202,6 +2206,62 @@ class DatabaseDashboard:
             } catch (error) {
                 alert(`❌ COMPLETE PURGE FAILED: ${error.message}`);
                 location.reload();
+            }
+        }
+        
+        async function visualizeSBOM(sbomId) {
+            try {
+                // Show loading indicator
+                const loadingDiv = document.createElement('div');
+                loadingDiv.style.cssText = `
+                    position: fixed;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    background: rgba(0, 0, 0, 0.8);
+                    color: white;
+                    padding: 20px 40px;
+                    border-radius: 8px;
+                    z-index: 10000;
+                    font-size: 16px;
+                    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+                `;
+                loadingDiv.innerHTML = '⏳ Generating SBOM visualization...';
+                document.body.appendChild(loadingDiv);
+                
+                // Call the visualization endpoint
+                const response = await fetch(`/api/v1/sboms/${sbomId}/visualize`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || `HTTP ${response.status}`);
+                }
+                
+                const result = await response.json();
+                
+                // Remove loading indicator
+                document.body.removeChild(loadingDiv);
+                
+                // Open the visualization in a new tab
+                if (result.html_url) {
+                    window.open(result.html_url, '_blank');
+                } else {
+                    throw new Error('No visualization URL returned');
+                }
+                
+            } catch (error) {
+                // Remove loading indicator if it exists
+                const loadingDiv = document.querySelector('div[style*="position: fixed"]');
+                if (loadingDiv && loadingDiv.innerHTML.includes('Generating SBOM visualization')) {
+                    document.body.removeChild(loadingDiv);
+                }
+                
+                alert(`❌ Failed to visualize SBOM: ${error.message}`);
             }
         }
         
